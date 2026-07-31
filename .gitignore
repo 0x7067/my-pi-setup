@@ -9,6 +9,7 @@ bin/
 sessions/
 /workflows/
 pi-hermes-memory/
+projects-memory/
 auth.json
 trust.json
 models.json
