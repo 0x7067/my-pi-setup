@@ -1,0 +1,38 @@
+# Dependencies and package-manager caches
+node_modules/
+**/node_modules/
+npm/
+git/
+bin/
+
+# Pi runtime and private state
+sessions/
+/workflows/
+pi-hermes-memory/
+auth.json
+trust.json
+models.json
+models-store.json
+*.sqlite
+*.sqlite-*
+pi-hermes-memory/*.db
+pi-hermes-memory/*.db-*
+extensions/summaries/config.private.json
+extensions/summaries/config.private.json.*.tmp
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs, temporary files, and local state
+*.log
+*.tmp
+*.swp
+.DS_Store
+
+# Local editor settings
+.vscode/
+.idea/

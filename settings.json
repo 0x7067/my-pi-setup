@@ -1,0 +1,14 @@
+{
+  "lastChangelogVersion": "0.83.0",
+  "theme": "github-dark-default",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-luna",
+  "defaultThinkingLevel": "high",
+  "defaultProjectTrust": "always",
+  "packages": [
+    "npm:pi-lens",
+    "git:github.com/algal/pi-openai-server-compaction",
+    "npm:pi-hermes-memory",
+    "npm:@nmzpy/pi-ember-stack"
+  ]
+}

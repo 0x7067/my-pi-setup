@@ -1,0 +1,13 @@
+{
+  "plugins": [
+    "devin-auth",
+    "pi-cursor-auth",
+    "pi-compact-tools",
+    "pi-ember-fff"
+  ],
+  "mode": "code",
+  "model": {
+    "provider": "openai-codex",
+    "modelId": "gpt-5.6-luna"
+  }
+}
