@@ -8,7 +8,6 @@
   "packages": [
     "npm:pi-lens",
     "git:github.com/algal/pi-openai-server-compaction",
-    "npm:pi-hermes-memory",
-    "npm:@nmzpy/pi-ember-stack"
+    "npm:pi-hermes-memory"
   ]
 }
