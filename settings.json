@@ -11,7 +11,8 @@
   "packages": [
     "npm:pi-lens",
     "git:github.com/algal/pi-openai-server-compaction",
-    "npm:pi-hermes-memory"
+    "npm:pi-hermes-memory",
+    "../../Development/a2a"
   ],
   "treeFilterMode": "default",
   "compaction": {
