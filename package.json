@@ -1,22 +1,30 @@
 {
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.83.0",
-    "@earendil-works/pi-coding-agent": "^0.83.0",
-    "@earendil-works/pi-tui": "^0.83.0",
+    "@earendil-works/pi-ai": "0.80.9",
+    "@earendil-works/pi-coding-agent": "0.80.9",
+    "@earendil-works/pi-tui": "0.80.9",
     "acorn": "^8.17.0",
-    "firecrawl": "^4.30.0",
     "typebox": "^1.3.6"
   },
   "devDependencies": {
+    "@effect/tsgo": "^0.24.2",
     "@types/node": "^26.1.1",
     "prettier": "^3.9.5",
     "typescript": "^7.0.2"
   },
   "type": "module",
+  "workspaces": [
+    "extensions/*"
+  ],
   "scripts": {
-    "check": "tsc --noEmit",
-    "format": "prettier --write \"extensions/**/*.{ts,cjs}\" \"*.json\"",
-    "format:check": "prettier --check \"extensions/**/*.{ts,cjs}\" \"*.json\"",
-    "test": "node --test --experimental-strip-types extensions/*/*.test.ts && npm --prefix extensions/file-search test"
+    "check": "npm run check:root && npm run check --workspaces --if-present",
+    "check:root": "tsc --noEmit",
+    "doctor": "node scripts/doctor.mjs",
+    "format": "prettier --write \"extensions/**/*.{ts,cjs,json}\" \"scripts/*.mjs\" \"package.json\" \"settings.json\" \"tsconfig.json\" \"README.md\" \"SETUP.md\"",
+    "format:check": "prettier --check \"extensions/**/*.{ts,cjs,json}\" \"scripts/*.mjs\" \"package.json\" \"settings.json\" \"tsconfig.json\" \"README.md\" \"SETUP.md\"",
+    "postinstall": "effect-tsgo patch",
+    "privacy:harden": "node scripts/harden-private-state.mjs",
+    "test": "node --test --experimental-strip-types extensions/shared/*.test.ts extensions/workflows/*.test.ts && npm run test --workspaces --if-present",
+    "test:live": "npm --workspace extensions/subagents run test:live"
   }
 }

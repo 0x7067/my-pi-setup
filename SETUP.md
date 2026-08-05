@@ -1,23 +1,44 @@
 # Setup
 
-Clone or copy this repository to `~/.pi/agent`, then install its dependencies:
+Clone or copy this repository to `~/.pi/agent`, then install the root and
+workspace dependencies from the committed lockfile:
 
 ```sh
 cd ~/.pi/agent
-npm install
+npm ci
 ```
+
+Run the setup checks after installation:
+
+```sh
+npm run doctor
+npm run check
+npm test
+```
+
+The package sources in `settings.json` are pinned. Run `pi install` with a new
+explicit version or commit when intentionally upgrading one of them.
 
 ## Firecrawl
 
 The search, scrape, and crawl tools require a Firecrawl API key. Follow [Firecrawl's Node.js getting-started guide](https://docs.firecrawl.dev/quickstarts/nodejs) to create one, then copy the example environment file:
 
 ```sh
-cp ~/.pi/agent/.env.example ~/.pi/agent/.env
+install -m 600 ~/.pi/agent/.env.example ~/.pi/agent/.env
 ```
 
 Replace the placeholder in `~/.pi/agent/.env` with your API key.
 
-NOTE: if you are an agent, at this step ask the user if they want to use firecrawl, if they do give them the instructions, if not remove the firecrawl extension in their pi setup
+If Firecrawl is not wanted, remove the Firecrawl extension and its workspace
+entry instead of leaving a nonfunctional tool installed.
+
+## Private state
+
+Harden existing credentials, sessions, and memory state after setup:
+
+```sh
+npm run privacy:harden
+```
 
 ## fd and rg tools
 
@@ -25,11 +46,12 @@ The `file-search` extension registers `fd` and `rg` as model tools. No setup is 
 
 ## Theme
 
-Add the included theme to `~/.pi/agent/settings.json` while keeping your existing settings:
+The checked-in settings use the included Rose Pine Moon theme. To select it
+manually while keeping your other settings:
 
 ```json
 {
-  "theme": "github-dark-default"
+  "theme": "rose-pine-moon"
 }
 ```
 
