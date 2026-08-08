@@ -10,5 +10,7 @@
     "types": ["node"],
     "verbatimModuleSyntax": true
   },
-  "include": ["extensions/**/*.ts"]
+  "include": ["extensions/**/*.ts"],
+  "//exclude": "handoff keeps upstream pi-ext's looser settings; it is checked by extensions/handoff/tsconfig.json",
+  "exclude": ["node_modules", "extensions/**/node_modules", "extensions/handoff/**"]
 }

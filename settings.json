@@ -1,20 +1,26 @@
 {
-  "lastChangelogVersion": "0.80.9",
+  "lastChangelogVersion": "0.84.1",
   "theme": "rose-pine-moon",
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-luna",
-  "defaultThinkingLevel": "xhigh",
+  "defaultProvider": "deepseek",
+  "defaultModel": "deepseek-v4-flash",
+  "defaultThinkingLevel": "high",
   "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
   "steeringMode": "all",
   "followUpMode": "all",
   "packages": [
     "npm:pi-lens@3.8.74",
-    "git:github.com/algal/pi-openai-server-compaction@8a3de2f3b0c1",
-    "npm:pi-hermes-memory@0.9.2"
+    "git:github.com/algal/pi-openai-server-compaction",
+    "npm:pi-hermes-memory@0.9.2",
+    "../../.hound/pi-extension",
+    "npm:@aliou/pi-synthetic"
   ],
   "treeFilterMode": "default",
   "compaction": {
     "enabled": true
-  }
+  },
+  "extensions": [
+    "-extensions/firecrawl-search/index.ts"
+  ],
+  "quietStartup": true
 }

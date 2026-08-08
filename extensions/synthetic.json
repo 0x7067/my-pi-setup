@@ -1,0 +1,10 @@
+{
+  "configVersion": "0.24.3",
+  "webSearch": true,
+  "quotasCommand": true,
+  "usageStatus": false,
+  "quotaWarnings": false,
+  "subBarIntegration": true,
+  "proxyUrl": "",
+  "proxyRequiresAuth": true
+}
