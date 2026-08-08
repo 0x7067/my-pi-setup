@@ -1,8 +1,8 @@
 {
   "lastChangelogVersion": "0.84.1",
   "theme": "rose-pine-moon",
-  "defaultProvider": "deepseek",
-  "defaultModel": "deepseek-v4-flash",
+  "defaultProvider": "synthetic",
+  "defaultModel": "syn:large:text",
   "defaultThinkingLevel": "high",
   "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
