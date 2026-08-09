@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pi Browser Relay</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+      }
+      body {
+        max-width: 42rem;
+        margin: 3rem auto;
+        padding: 0 1.25rem;
+      }
+      form {
+        display: grid;
+        gap: 1rem;
+      }
+      label {
+        display: grid;
+        gap: 0.35rem;
+        font-weight: 650;
+      }
+      input {
+        font: inherit;
+        padding: 0.65rem 0.75rem;
+        border: 1px solid #7b8580;
+        border-radius: 0.35rem;
+      }
+      button {
+        justify-self: start;
+        font: inherit;
+        font-weight: 700;
+        padding: 0.65rem 1rem;
+      }
+      small {
+        opacity: 0.75;
+      }
+      #status {
+        min-height: 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Pi Browser Relay</h1>
+    <p>
+      The relay only connects to Pi on this computer. Get the token with
+      <code>/browser-relay token</code>.
+    </p>
+    <form id="settings">
+      <label
+        >Port <input id="port" type="number" min="1" max="65535" required
+      /></label>
+      <label
+        >Private token
+        <input id="token" type="password" autocomplete="off" required
+      /></label>
+      <small
+        >Keep this token private. After connecting, click the toolbar icon on
+        each tab you want to share.</small
+      >
+      <button type="submit">Save and connect</button>
+      <div id="status" role="status" aria-live="polite"></div>
+    </form>
+    <script src="options.js" type="module"></script>
+  </body>
+</html>
