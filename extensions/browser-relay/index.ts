@@ -181,7 +181,7 @@ function asRecord(value: unknown) {
     : {};
 }
 
-function jsonText(value: unknown) {
+export function jsonText(value: unknown) {
   const result = JSON.stringify(value, null, 2) ?? "null";
   if (Buffer.byteLength(result, "utf8") > MAX_TOOL_JSON_BYTES) {
     throw new Error(

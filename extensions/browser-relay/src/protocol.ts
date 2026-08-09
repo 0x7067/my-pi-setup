@@ -37,7 +37,7 @@ export type RelayResponse =
 
 export interface RelayHealth {
   name: "pi-browser-relay";
-  version: 1;
+  version: 2;
   connected: boolean;
   proof: string;
 }

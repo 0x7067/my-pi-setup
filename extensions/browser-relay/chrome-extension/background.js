@@ -1,5 +1,9 @@
 import { createRelayHandshake } from "./auth.js";
-import { isAllowedCdpEvent, isAllowedCdpMethod } from "./cdp-policy.js";
+import {
+  isAllowedCdpEvent,
+  isAllowedCdpMethod,
+  sanitizeCdpEvent,
+} from "./cdp-policy.js";
 import { RelayEventBuffer } from "./event-buffer.js";
 
 const DEFAULT_PORT = 9234;
@@ -231,7 +235,11 @@ async function connect() {
   socket = current;
   current.addEventListener("open", () => {
     current.send(
-      JSON.stringify({ type: "hello", clientNonce: handshake.clientNonce }),
+      JSON.stringify({
+        type: "hello",
+        protocolVersion: 2,
+        clientNonce: handshake.clientNonce,
+      }),
     );
     keepaliveTimer = setInterval(() => {
       if (current.readyState === WebSocket.OPEN) {
@@ -286,7 +294,7 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
     allowedTabs.has(source.tabId) &&
     isAllowedCdpEvent(method)
   ) {
-    debuggerEvents.push(source.tabId, method, params);
+    debuggerEvents.push(source.tabId, method, sanitizeCdpEvent(method, params));
   }
 });
 chrome.storage.onChanged.addListener((_changes, area) => {

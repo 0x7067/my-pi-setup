@@ -46,3 +46,14 @@ test("enforces the byte cap using UTF-8 bytes", () => {
   assert.equal(drained.events.length, 0);
   assert.equal(drained.dropped, 1);
 });
+
+test("uses the bounded production byte limit by default", () => {
+  const events = new RelayEventBuffer();
+  events.push(7, "Runtime.consoleAPICalled", {
+    value: "x".repeat(512 * 1024),
+  });
+
+  const drained = events.drain(7);
+  assert.equal(drained.events.length, 0);
+  assert.equal(drained.dropped, 1);
+});

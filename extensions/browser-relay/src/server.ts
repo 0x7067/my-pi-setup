@@ -23,6 +23,7 @@ const MAX_REQUEST_BYTES = 1024 * 1024;
 const MAX_EXTENSION_MESSAGE_BYTES = 8 * 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 20_000;
 const HANDSHAKE_TIMEOUT_MS = 10_000;
+const PROTOCOL_VERSION = 2;
 
 function equalSecret(actual: string, expected: string) {
   const actualBytes = Buffer.from(actual);
@@ -190,6 +191,7 @@ export class BrowserRelayServer {
         }
         if (
           message.type === "hello" &&
+          message.protocolVersion === PROTOCOL_VERSION &&
           typeof message.clientNonce === "string" &&
           message.clientNonce.length >= 16 &&
           message.clientNonce.length <= 256
@@ -310,7 +312,7 @@ export class BrowserRelayServer {
       }
       const health: RelayHealth = {
         name: "pi-browser-relay",
-        version: 1,
+        version: PROTOCOL_VERSION,
         connected: this.connected,
         proof: requestProof(this.#token, "health", nonce),
       };
@@ -397,7 +399,7 @@ export async function relayHealth(
   const value = (await response.json()) as Partial<RelayHealth>;
   if (
     value.name !== "pi-browser-relay" ||
-    value.version !== 1 ||
+    value.version !== PROTOCOL_VERSION ||
     typeof value.proof !== "string" ||
     !equalSecret(value.proof, requestProof(token, "health", nonce))
   ) {

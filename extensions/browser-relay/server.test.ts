@@ -34,7 +34,9 @@ async function authenticate(socket: WebSocket, token: string) {
     socket.once("error", reject);
   });
   const clientNonce = randomBytes(32).toString("base64url");
-  socket.send(JSON.stringify({ type: "hello", clientNonce }));
+  socket.send(
+    JSON.stringify({ type: "hello", protocolVersion: 2, clientNonce }),
+  );
   const challenge = await nextMessage(socket);
   assert.equal(challenge.type, "challenge");
   assert.equal(
@@ -86,6 +88,28 @@ test("rejects browser-wide and bulk CDP commands before extension forwarding", (
     isRelayCommand({ action: "navigate", tabId: 7, url: "file:///tmp/x" }),
     false,
   );
+});
+
+test("rejects companion extensions using an older policy protocol", async () => {
+  const server = new BrowserRelayServer("version-token-that-is-long-enough", 0);
+  await server.start();
+  const socket = new WebSocket(`ws://127.0.0.1:${server.port}/extension`);
+  await new Promise<void>((resolve, reject) => {
+    socket.once("open", resolve);
+    socket.once("error", reject);
+  });
+  const closed = new Promise<number>((resolve) =>
+    socket.once("close", (code) => resolve(code)),
+  );
+  socket.send(
+    JSON.stringify({
+      type: "hello",
+      clientNonce: randomBytes(32).toString("base64url"),
+    }),
+  );
+
+  assert.equal(await closed, 1008);
+  await server.close();
 });
 
 test("mutually authenticates without sending the token and protects the command API", async (context) => {

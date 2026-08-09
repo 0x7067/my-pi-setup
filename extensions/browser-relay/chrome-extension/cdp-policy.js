@@ -228,15 +228,150 @@ const ALLOWED_COMMANDS = new Set([
   "Schema.getDomains",
 ]);
 
-const EVENT_DOMAINS = new Set(
-  [...ALLOWED_COMMANDS].map((method) => method.slice(0, method.indexOf("."))),
-);
+const ALLOWED_EVENTS = new Set([
+  "Accessibility.loadComplete",
+  "Accessibility.nodesUpdated",
+  "Audits.issueAdded",
+  "CSS.fontsUpdated",
+  "CSS.mediaQueryResultChanged",
+  "CSS.styleSheetAdded",
+  "CSS.styleSheetChanged",
+  "CSS.styleSheetRemoved",
+  "DOM.attributeModified",
+  "DOM.attributeRemoved",
+  "DOM.characterDataModified",
+  "DOM.childNodeCountUpdated",
+  "DOM.childNodeInserted",
+  "DOM.childNodeRemoved",
+  "DOM.documentUpdated",
+  "DOM.inlineStyleInvalidated",
+  "DOM.setChildNodes",
+  "Emulation.virtualTimeBudgetExpired",
+  "Log.entryAdded",
+  "Network.dataReceived",
+  "Network.loadingFailed",
+  "Network.loadingFinished",
+  "Network.requestServedFromCache",
+  "Network.requestWillBeSent",
+  "Network.resourceChangedPriority",
+  "Network.responseReceived",
+  "Network.webSocketCreated",
+  "Page.domContentEventFired",
+  "Page.fileChooserOpened",
+  "Page.javascriptDialogClosed",
+  "Page.javascriptDialogOpening",
+  "Page.lifecycleEvent",
+  "Page.loadEventFired",
+  "PerformanceTimeline.timelineEventAdded",
+  "Profiler.consoleProfileFinished",
+  "Profiler.consoleProfileStarted",
+  "Runtime.bindingCalled",
+  "Runtime.consoleAPICalled",
+  "Runtime.exceptionRevoked",
+  "Runtime.exceptionThrown",
+  "Runtime.executionContextCreated",
+  "Runtime.executionContextDestroyed",
+  "Runtime.executionContextsCleared",
+]);
+
+function safeUrl(value) {
+  if (typeof value !== "string") return "";
+  try {
+    const url = new URL(value);
+    if (!new Set(["http:", "https:", "ws:", "wss:"]).has(url.protocol)) {
+      return `${url.protocol}[redacted]`;
+    }
+    url.username = "";
+    url.password = "";
+    for (const key of [...url.searchParams.keys()]) {
+      url.searchParams.set(key, "[redacted]");
+    }
+    url.hash = "";
+    return url.href;
+  } catch {
+    return "[redacted-url]";
+  }
+}
+
+function redactedHeaders(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.keys(value).map((name) => [name, "[redacted]"]),
+  );
+}
+
+function safeRequest(value) {
+  if (!value || typeof value !== "object") return {};
+  return {
+    url: safeUrl(value.url),
+    method: value.method,
+    headers: redactedHeaders(value.headers),
+    hasPostData: value.hasPostData,
+    initialPriority: value.initialPriority,
+    referrerPolicy: value.referrerPolicy,
+    isLinkPreload: value.isLinkPreload,
+  };
+}
+
+function safeResponse(value) {
+  if (!value || typeof value !== "object") return {};
+  return {
+    url: safeUrl(value.url),
+    status: value.status,
+    statusText: value.statusText,
+    headers: redactedHeaders(value.headers),
+    mimeType: value.mimeType,
+    connectionReused: value.connectionReused,
+    connectionId: value.connectionId,
+    encodedDataLength: value.encodedDataLength,
+    fromDiskCache: value.fromDiskCache,
+    fromServiceWorker: value.fromServiceWorker,
+    protocol: value.protocol,
+    securityState: value.securityState,
+  };
+}
 
 export function isAllowedCdpMethod(method) {
   return ALLOWED_COMMANDS.has(method);
 }
 
 export function isAllowedCdpEvent(method) {
-  const separator = method.indexOf(".");
-  return separator > 0 && EVENT_DOMAINS.has(method.slice(0, separator));
+  return ALLOWED_EVENTS.has(method);
+}
+
+export function sanitizeCdpEvent(method, params) {
+  if (!isAllowedCdpEvent(method)) return undefined;
+  if (!params || typeof params !== "object") return params;
+  if (method === "Network.requestWillBeSent") {
+    return {
+      requestId: params.requestId,
+      loaderId: params.loaderId,
+      documentURL: safeUrl(params.documentURL),
+      request: safeRequest(params.request),
+      timestamp: params.timestamp,
+      wallTime: params.wallTime,
+      type: params.type,
+      frameId: params.frameId,
+      hasUserGesture: params.hasUserGesture,
+      redirectHasExtraInfo: params.redirectHasExtraInfo,
+      redirectResponse: params.redirectResponse
+        ? safeResponse(params.redirectResponse)
+        : undefined,
+    };
+  }
+  if (method === "Network.responseReceived") {
+    return {
+      requestId: params.requestId,
+      loaderId: params.loaderId,
+      timestamp: params.timestamp,
+      type: params.type,
+      response: safeResponse(params.response),
+      hasExtraInfo: params.hasExtraInfo,
+      frameId: params.frameId,
+    };
+  }
+  if (method === "Network.webSocketCreated") {
+    return { requestId: params.requestId, url: safeUrl(params.url) };
+  }
+  return params;
 }

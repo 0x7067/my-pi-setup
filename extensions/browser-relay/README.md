@@ -41,6 +41,8 @@ Security boundaries:
 - The server binds only to IPv4 loopback.
 - Chrome, Pi, and the server mutually authenticate with nonce-based HMAC proofs.
   The token never crosses a local connection.
+- The server requires the current companion policy protocol and rejects stale
+  unpacked-extension workers until Edge or Chrome reloads them.
 - Only tabs explicitly shared with the toolbar icon are listed or attachable.
 - A `newTab` tool call shares only the tab it creates; it does not expose other
   tabs.
