@@ -88,7 +88,24 @@ for (const source of settings.packages ?? []) {
     failures.push(`git package is not pinned: ${source}`);
   }
   if (source.startsWith(".") || source.startsWith("/")) {
-    failures.push(`machine-local package source remains: ${source}`);
+    if (source !== "../../.hound/pi-extension") {
+      failures.push(
+        `unexpected machine-local package source remains: ${source}`,
+      );
+      continue;
+    }
+    const houndPackage = await readJson(
+      join(agentDir, source, "package.json"),
+    ).catch(() => undefined);
+    if (
+      houndPackage?.name !== "@houndmcp/hound-mcp-pi" ||
+      houndPackage?.version !== "13.1.1" ||
+      !houndPackage?.pi?.extensions?.includes("./extensions/hound.ts")
+    ) {
+      failures.push(
+        "../../.hound/pi-extension must be @houndmcp/hound-mcp-pi@13.1.1 with its Hound entrypoint",
+      );
+    }
   }
 }
 

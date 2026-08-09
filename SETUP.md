@@ -16,8 +16,11 @@ npm run check
 npm test
 ```
 
-The package sources in `settings.json` are pinned. Run `pi install` with a new
-explicit version or commit when intentionally upgrading one of them.
+The registry and Git package sources in `settings.json` are pinned. The local
+Hound source is accepted only when doctor finds
+`@houndmcp/hound-mcp-pi@13.1.1` and its expected extension entrypoint. Run
+`pi install` with a new explicit version or commit when intentionally upgrading
+one of the other packages, and update the doctor expectation with Hound.
 
 Remote OpenAI compaction is vendored under
 `extensions/openai-server-compaction` from upstream commit
