@@ -19,6 +19,12 @@ npm test
 The package sources in `settings.json` are pinned. Run `pi install` with a new
 explicit version or commit when intentionally upgrading one of them.
 
+Remote OpenAI compaction is vendored under
+`extensions/openai-server-compaction` from upstream commit
+`8a3de2f3b0c178fdd6f73f2f94172dfc3943e466`. Its local compatibility patch
+filters null provider-header values introduced by Pi 0.84 before making remote
+requests. Update the vendored source and its recorded upstream commit together.
+
 ## Firecrawl
 
 The search, scrape, and crawl tools require a Firecrawl API key. Follow [Firecrawl's Node.js getting-started guide](https://docs.firecrawl.dev/quickstarts/nodejs) to create one, then copy the example environment file:

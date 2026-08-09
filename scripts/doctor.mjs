@@ -168,11 +168,11 @@ if (resolvedPi.status !== 0 || !runtimePiPath) {
 }
 
 const compactionPackage = await readJson(
-  join(
-    agentDir,
-    "git/github.com/algal/pi-openai-server-compaction/package.json",
-  ),
+  join(agentDir, "extensions/openai-server-compaction/package.json"),
 ).catch(() => undefined);
+if (!compactionPackage) {
+  failures.push("vendored remote compaction package is unavailable");
+}
 const compactionRange =
   compactionPackage?.peerDependencies?.["@earendil-works/pi-coding-agent"];
 if (
