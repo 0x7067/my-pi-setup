@@ -17,7 +17,7 @@ The CDP and event operations support console, network, emulation, performance,
 CPU/heap profiling, dialog, upload, hover, and drag workflows. Page-changing
 calls require an exact tab ID and automatically return a new semantic snapshot.
 
-`events` keeps at most 1,000 events and 4 MiB per tab, reports dropped events,
+`events` keeps at most 1,000 events and 512 KiB per tab, reports dropped events,
 returns at most 200 events per call, and drains returned events by default.
 Enable the corresponding CDP domain before collecting its events. Exact
 Lighthouse scoring is not included; it is an analysis layer above CDP rather
@@ -30,6 +30,7 @@ Browser, Target, Storage, Tracing, Extensions, cookie/cache management, crash,
 raw navigation, download-policy, streamed-body, and heap-snapshot commands stay
 blocked so CDP cannot bypass the per-tab sharing or bounded-output boundaries.
 Use the validated `navigate` operation for HTTP(S) navigation.
+Generic JSON tool results are limited to 1 MiB and extension messages to 8 MiB.
 
 The first Pi process starts the server on `127.0.0.1:9234`. Other Pi processes
 reuse that server through its authenticated local HTTP API. Set

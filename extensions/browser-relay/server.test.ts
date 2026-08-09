@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { createHmac, randomBytes } from "node:crypto";
 import test from "node:test";
 import { WebSocket } from "ws";
-import { BrowserRelayServer, relayCommand, relayHealth } from "./src/server.ts";
+import {
+  BrowserRelayServer,
+  isRelayCommand,
+  relayCommand,
+  relayHealth,
+} from "./src/server.ts";
 
 function proof(token: string, role: "client" | "server", nonce: string) {
   return createHmac("sha256", token)
@@ -56,6 +61,32 @@ function answerCommands(socket: WebSocket) {
     );
   });
 }
+
+test("rejects browser-wide and bulk CDP commands before extension forwarding", () => {
+  assert.equal(
+    isRelayCommand({ action: "cdp", tabId: 7, method: "Runtime.evaluate" }),
+    true,
+  );
+  for (const method of [
+    "Browser.close",
+    "Page.deleteCookie",
+    "Page.navigate",
+    "Page.navigateToHistoryEntry",
+    "Network.getResponseBody",
+    "Tracing.start",
+    "HeapProfiler.takeHeapSnapshot",
+  ]) {
+    assert.equal(
+      isRelayCommand({ action: "cdp", tabId: 7, method }),
+      false,
+      method,
+    );
+  }
+  assert.equal(
+    isRelayCommand({ action: "navigate", tabId: 7, url: "file:///tmp/x" }),
+    false,
+  );
+});
 
 test("mutually authenticates without sending the token and protects the command API", async (context) => {
   const token = "test-token-that-is-long-enough-for-auth";

@@ -16,6 +16,7 @@ const EXTENSION_DIR = join(
   dirname(fileURLToPath(import.meta.url)),
   "chrome-extension",
 );
+const MAX_TOOL_JSON_BYTES = 1024 * 1024;
 
 const operation = Type.Union([
   Type.Literal("tabs"),
@@ -181,7 +182,13 @@ function asRecord(value: unknown) {
 }
 
 function jsonText(value: unknown) {
-  return JSON.stringify(value, null, 2) ?? "null";
+  const result = JSON.stringify(value, null, 2) ?? "null";
+  if (Buffer.byteLength(result, "utf8") > MAX_TOOL_JSON_BYTES) {
+    throw new Error(
+      "Browser relay result exceeds 1 MiB. Use a narrower CDP query or event filter.",
+    );
+  }
+  return result;
 }
 
 function keyDescription(key: string) {
@@ -683,7 +690,7 @@ export default function browserRelay(pi: ExtensionAPI) {
           content: [
             {
               type: "text",
-              text: `${JSON.stringify(value, null, 2)}\n\n${await postcondition(tabId, signal)}`,
+              text: `${jsonText(value)}\n\n${await postcondition(tabId, signal)}`,
             },
           ],
           details,

@@ -1,5 +1,5 @@
 const DEFAULT_MAX_EVENTS = 1000;
-const DEFAULT_MAX_BYTES = 4 * 1024 * 1024;
+const DEFAULT_MAX_BYTES = 512 * 1024;
 
 export class RelayEventBuffer {
   #maxEvents;

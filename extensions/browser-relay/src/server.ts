@@ -17,8 +17,10 @@ import type {
   RelayRequest,
   RelayResponse,
 } from "./protocol.ts";
+import { isAllowedCdpMethod } from "../chrome-extension/cdp-policy.js";
 
 const MAX_REQUEST_BYTES = 1024 * 1024;
+const MAX_EXTENSION_MESSAGE_BYTES = 8 * 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 20_000;
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 
@@ -69,13 +71,22 @@ async function readBody(request: IncomingMessage) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function isRelayCommand(value: unknown): value is RelayCommand {
+function isHttpUrl(value: unknown) {
+  if (typeof value !== "string") return false;
+  try {
+    return new Set(["http:", "https:"]).has(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
+export function isRelayCommand(value: unknown): value is RelayCommand {
   if (!value || typeof value !== "object" || !("action" in value)) return false;
   const command = value as Record<string, unknown>;
   if (command.action === "tabs") return true;
-  if (command.action === "newTab") return typeof command.url === "string";
+  if (command.action === "newTab") return isHttpUrl(command.url);
   if (command.action === "navigate") {
-    return Number.isInteger(command.tabId) && typeof command.url === "string";
+    return Number.isInteger(command.tabId) && isHttpUrl(command.url);
   }
   if (command.action === "activateTab" || command.action === "closeTab") {
     return Number.isInteger(command.tabId);
@@ -98,6 +109,7 @@ function isRelayCommand(value: unknown): value is RelayCommand {
     typeof command.method === "string" &&
     command.method.length > 0 &&
     command.method.length <= 256 &&
+    isAllowedCdpMethod(command.method) &&
     (command.params === undefined ||
       (!!command.params &&
         typeof command.params === "object" &&
@@ -108,7 +120,10 @@ function isRelayCommand(value: unknown): value is RelayCommand {
 export class BrowserRelayServer {
   readonly #token: string;
   readonly #requestedPort: number;
-  readonly #webSockets = new WebSocketServer({ noServer: true });
+  readonly #webSockets = new WebSocketServer({
+    noServer: true,
+    maxPayload: MAX_EXTENSION_MESSAGE_BYTES,
+  });
   readonly #pending = new Map<
     string,
     {
