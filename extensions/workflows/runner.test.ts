@@ -189,10 +189,17 @@ test("first-response watchdog aborts a silent provider request", async () => {
     { timeoutMs: 10, model: "fixture-model" },
   );
 
-  await assert.rejects(
-    watchdog.waitFor(new Promise<never>(() => {})),
-    /no assistant response event for fixture-model within 10 ms.*stalled/i,
-  );
+  // The watchdog timer is unref'ed so it never keeps a real process alive;
+  // hold the event loop open here so the timeout can fire inside the test.
+  const keepAlive = setTimeout(() => {}, 5_000);
+  try {
+    await assert.rejects(
+      watchdog.waitFor(new Promise<never>(() => {})),
+      /no assistant response event for fixture-model within 10 ms.*stalled/i,
+    );
+  } finally {
+    clearTimeout(keepAlive);
+  }
   assert.equal(aborted, true);
 });
 

@@ -1,0 +1,17 @@
+{
+  "name": "browser-relay",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit -p .",
+    "test": "node --test --experimental-strip-types auth.test.ts ax.test.ts cdp-policy.test.ts event-buffer.test.ts output.test.ts server.test.ts"
+  },
+  "dependencies": {
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@effect/tsgo": "^0.24.2",
+    "@types/ws": "^8.18.1",
+    "typescript": "^7.0.2"
+  }
+}

@@ -10,17 +10,14 @@
   "followUpMode": "all",
   "packages": [
     "npm:pi-lens@3.8.74",
-    "git:github.com/algal/pi-openai-server-compaction",
     "npm:pi-hermes-memory@0.9.2",
     "../../.hound/pi-extension",
-    "npm:@aliou/pi-synthetic"
+    "npm:@aliou/pi-synthetic@0.24.3"
   ],
   "treeFilterMode": "default",
   "compaction": {
     "enabled": true
   },
-  "extensions": [
-    "-extensions/firecrawl-search/index.ts"
-  ],
+  "extensions": ["-extensions/firecrawl-search/index.ts"],
   "quietStartup": true
 }
