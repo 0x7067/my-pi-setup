@@ -397,6 +397,7 @@ export function createFirstResponseWatchdog(
       );
       void onTimeout().catch(() => {});
     }, timeoutMs);
+    timer.unref?.();
   });
 
   const cancel = () => {

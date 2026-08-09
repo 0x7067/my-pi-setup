@@ -12,5 +12,12 @@
       "@sting8k/pi-vcc/src/core/*": ["./types/pi-vcc-core.d.ts"]
     }
   },
-  "include": ["index.ts", "redact.ts", "types/**/*.d.ts", "../shared/multiplexer.ts", "../shared/overlay.ts", "../shared/thinking-colors.ts"]
+  "include": [
+    "index.ts",
+    "redact.ts",
+    "types/**/*.d.ts",
+    "../shared/multiplexer.ts",
+    "../shared/overlay.ts",
+    "../shared/thinking-colors.ts"
+  ]
 }

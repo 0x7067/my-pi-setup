@@ -1,16 +1,2 @@
 # Private/generated Python environments are not project source.
 **/.venv/**
-
-# Legacy files predate the repository-wide Prettier command. Keep them out of
-# the gate until they can be reformatted in focused, behavior-neutral changes.
-extensions/custom-ocr/privacy.test.ts
-extensions/custom-ocr/src/parse.ts
-extensions/handoff/index.ts
-extensions/handoff/redact.ts
-extensions/handoff/tsconfig.json
-extensions/handoff/types/pi-vcc-core.d.ts
-extensions/shared/multiplexer.ts
-extensions/shared/overlay.ts
-extensions/shared/thinking-colors.ts
-extensions/spark-strict-tools/index.ts
-extensions/summaries/src/prompt.ts

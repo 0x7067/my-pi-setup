@@ -310,7 +310,7 @@ export class BrowserRelayServer {
         json(response, 401, { error: "Unauthorized" });
         return;
       }
-      this.#httpNonces.set(nonce, now + 60_000);
+      this.#httpNonces.set(nonce, Math.max(now, timestamp) + 60_000);
       const command = JSON.parse(body) as unknown;
       if (!isRelayCommand(command)) {
         json(response, 400, { error: "Invalid relay command" });
