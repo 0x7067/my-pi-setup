@@ -5,8 +5,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { encode } from "@toon-format/toon";
 import { Type, type Static } from "typebox";
-import { formatAccessibilitySnapshot } from "./src/ax.ts";
+import { formatAccessibilitySnapshot, type SnapshotOptions } from "./src/ax.ts";
 import type { BrowserTab, RelayCommand, RelayHealth } from "./src/protocol.ts";
 import { BrowserRelayServer, relayCommand, relayHealth } from "./src/server.ts";
 
@@ -54,6 +55,13 @@ const parameters = Type.Object({
       description: "backend node ID from the latest snapshot",
     }),
   ),
+  ref: Type.Optional(
+    Type.String({
+      pattern: "^g[0-9]+:[1-9][0-9]*$",
+      description:
+        "Generation-scoped element ref from the latest snapshot, such as g3:42",
+    }),
+  ),
   text: Type.Optional(Type.String({ description: "Text for type" })),
   clear: Type.Optional(
     Type.Boolean({ description: "Clear an input before typing into it" }),
@@ -66,6 +74,32 @@ const parameters = Type.Object({
   ),
   expression: Type.Optional(
     Type.String({ description: "JavaScript expression for evaluate" }),
+  ),
+  snapshotAfter: Type.Optional(
+    Type.Boolean({
+      description:
+        "Return a compact snapshot after evaluate or cdp (default false)",
+    }),
+  ),
+  snapshotMode: Type.Optional(
+    Type.Union([Type.Literal("compact"), Type.Literal("full")], {
+      description: "Accessibility snapshot detail (default compact)",
+    }),
+  ),
+  query: Type.Optional(
+    Type.String({
+      minLength: 1,
+      maxLength: 500,
+      description: "Only return snapshot nodes matching this text and context",
+    }),
+  ),
+  maxChars: Type.Optional(
+    Type.Integer({
+      minimum: 1_000,
+      maximum: 30_000,
+      description:
+        "Snapshot character budget (default 16000 compact, 30000 full)",
+    }),
   ),
   fullPage: Type.Optional(
     Type.Boolean({ description: "Capture the full document in screenshot" }),
@@ -92,7 +126,7 @@ const parameters = Type.Object({
     Type.Integer({
       minimum: 1,
       maximum: 200,
-      description: "Maximum debugger events to return (default 100)",
+      description: "Maximum debugger events to return (default 20)",
     }),
   ),
 });
@@ -182,14 +216,58 @@ function asRecord(value: unknown) {
     : {};
 }
 
-export function jsonText(value: unknown) {
-  const result = JSON.stringify(value, null, 2) ?? "null";
+export function toonText(value: unknown) {
+  const result = encode(value, { keyFolding: "safe" });
   if (Buffer.byteLength(result, "utf8") > MAX_TOOL_JSON_BYTES) {
     throw new Error(
       "Browser relay result exceeds 1 MiB. Use a narrower CDP query or event filter.",
     );
   }
   return result;
+}
+
+export function resolveNodeId(
+  ref: string | undefined,
+  nodeId: number | undefined,
+  generation: number | undefined,
+) {
+  if (!ref) {
+    if (generation === undefined) {
+      throw new Error(
+        "STALE_REF: no current snapshot is available. Capture a new snapshot and retry with its ref.",
+      );
+    }
+    return requireNumber(nodeId, "ref or nodeId");
+  }
+  const match = /^g(\d+):(\d+)$/.exec(ref);
+  if (!match) throw new Error(`Invalid element ref ${JSON.stringify(ref)}`);
+  const refGeneration = Number(match[1]);
+  if (generation === undefined || refGeneration !== generation) {
+    throw new Error(
+      `STALE_REF: ${ref} is not from the latest snapshot. Capture a new snapshot and retry with its ref.`,
+    );
+  }
+  return Number(match[2]);
+}
+
+export class ElementRefGenerations {
+  readonly #counters = new Map<number, number>();
+  readonly #current = new Map<number, number>();
+
+  current(tabId: number) {
+    return this.#current.get(tabId);
+  }
+
+  invalidate(tabId: number) {
+    this.#current.delete(tabId);
+  }
+
+  install(tabId: number) {
+    const generation = (this.#counters.get(tabId) ?? 0) + 1;
+    this.#counters.set(tabId, generation);
+    this.#current.set(tabId, generation);
+    return generation;
+  }
 }
 
 function keyDescription(key: string) {
@@ -240,6 +318,7 @@ export default function browserRelay(pi: ExtensionAPI) {
   let owner: BrowserRelayServer | undefined;
   let starting: Promise<void> | undefined;
   let shuttingDown = false;
+  const refs = new ElementRefGenerations();
 
   async function ensureRelay() {
     if (shuttingDown) throw new Error("Browser relay is shutting down");
@@ -312,7 +391,12 @@ export default function browserRelay(pi: ExtensionAPI) {
     return await command({ action: "cdp", tabId, method, params }, signal);
   }
 
-  async function snapshot(tabId: number, signal?: AbortSignal) {
+  async function snapshot(
+    tabId: number,
+    options: SnapshotOptions = {},
+    signal?: AbortSignal,
+  ) {
+    refs.invalidate(tabId);
     await cdp(tabId, "Accessibility.enable", undefined, signal);
     const result = await cdp(
       tabId,
@@ -320,12 +404,26 @@ export default function browserRelay(pi: ExtensionAPI) {
       undefined,
       signal,
     );
-    return formatAccessibilitySnapshot(result, await tab(tabId, signal));
+    const currentTab = await tab(tabId, signal);
+    const generation = refs.install(tabId);
+    try {
+      return formatAccessibilitySnapshot(result, currentTab, {
+        ...options,
+        generation,
+      });
+    } catch (error) {
+      refs.invalidate(tabId);
+      throw error;
+    }
   }
 
-  async function postcondition(tabId: number, signal?: AbortSignal) {
+  async function postcondition(
+    tabId: number,
+    options: SnapshotOptions,
+    signal?: AbortSignal,
+  ) {
     await delay(300, signal);
-    return await snapshot(tabId, signal);
+    return await snapshot(tabId, options, signal);
   }
 
   async function waitForPage(tabId: number, signal?: AbortSignal) {
@@ -388,16 +486,16 @@ export default function browserRelay(pi: ExtensionAPI) {
     name: "browser-relay",
     label: "Browser Relay",
     description:
-      "Inspect and control an explicitly shared, logged-in Chrome or Edge tab through the user's loopback-only relay. List tabs first, then use the exact tabId. Ergonomic page-changing operations automatically return a fresh accessibility snapshot; advanced CDP mutations require a separate verification call.",
+      "Inspect and control an explicitly shared, logged-in Chrome or Edge tab through the user's loopback-only relay. Results use token-efficient compact snapshots and TOON. Page-changing operations return fresh generation-scoped refs; evaluate and cdp can optionally return a snapshot in the same call.",
     promptSnippet:
       "Inspect and control an explicitly selected existing Chrome tab through the local authenticated relay",
     promptGuidelines: [
       "Call browser-relay with operation=tabs before acting, then use the exact tabId returned for every page-changing operation.",
-      "Use snapshot before click or type, and address elements with the nodeId from that snapshot.",
-      "Use cdp for advanced tab-scoped Chrome DevTools Protocol operations. Enable the relevant domain before polling events; events are bounded and drained by default.",
-      "newTab opens and shares a background tab. Existing tabs remain unavailable until the user shares them with the toolbar icon. Use activateTab only when the user explicitly asks to focus that tab, and never focus a tab through cdp. A background tab stops painting, so read it with snapshot instead of screenshot.",
+      "Use compact snapshots and their generation-scoped ref values for click or type. Add query to focus large pages; use snapshotMode=full only when compact output omits necessary context. A STALE_REF error requires one new snapshot.",
+      "Structured cdp, events, and evaluate results use TOON. Use cdp for advanced tab-scoped Chrome DevTools Protocol operations. Enable the relevant domain before polling events; events are bounded and drained by default.",
+      "newTab opens and shares a background tab and returns its first compact snapshot. Existing tabs remain unavailable until the user shares them with the toolbar icon. Use activateTab only when the user explicitly asks to focus that tab, and never focus a tab through cdp. A background tab stops painting, so read it with snapshot instead of screenshot.",
       "Do not navigate, click, type, press keys, evaluate JavaScript, use cdp, create/activate/close tabs, or upload files until the user-authorized account, tab, file, and target are clear.",
-      "After any mutating cdp call, verify the semantic postcondition with snapshot, tabs, events, or another authoritative read.",
+      "After any mutating evaluate or cdp call, set snapshotAfter=true or verify the semantic postcondition with snapshot, tabs, events, or another authoritative read.",
     ],
     executionMode: "sequential",
     parameters,
@@ -407,6 +505,11 @@ export default function browserRelay(pi: ExtensionAPI) {
         operation: input.operation,
         tabId: input.tabId,
         connected: state.health.connected,
+      };
+      const snapshotOptions: SnapshotOptions = {
+        maxChars: input.maxChars,
+        mode: input.snapshotMode,
+        query: input.query,
       };
 
       if (input.operation === "tabs") {
@@ -438,22 +541,28 @@ export default function browserRelay(pi: ExtensionAPI) {
         const created = asRecord(
           await command({ action: "newTab", url: url.href }, signal),
         );
+        const createdTabId = requireNumber(
+          typeof created.id === "number" ? created.id : undefined,
+          "created tab ID",
+        );
+        await waitForPage(createdTabId, signal);
         return {
           content: [
             {
               type: "text",
-              text: `Created and shared tab ${String(created.id)} at ${String(created.url)}.`,
+              text: await snapshot(createdTabId, snapshotOptions, signal),
             },
           ],
           details: {
             ...details,
-            tabId: typeof created.id === "number" ? created.id : details.tabId,
+            tabId: createdTabId,
           },
         };
       }
 
       const tabId = requireNumber(input.tabId, "tabId");
       if (input.operation === "activateTab") {
+        refs.invalidate(tabId);
         await command({ action: "activateTab", tabId }, signal);
         return {
           content: [{ type: "text", text: `Activated tab ${tabId}.` }],
@@ -462,6 +571,7 @@ export default function browserRelay(pi: ExtensionAPI) {
       }
 
       if (input.operation === "closeTab") {
+        refs.invalidate(tabId);
         await command({ action: "closeTab", tabId }, signal);
         return {
           content: [{ type: "text", text: `Closed shared tab ${tabId}.` }],
@@ -475,33 +585,47 @@ export default function browserRelay(pi: ExtensionAPI) {
             action: "events",
             tabId,
             methodPrefix: input.methodPrefix,
-            limit: input.limit,
+            limit: input.limit ?? 20,
             clear: input.clear,
           },
           signal,
         );
         return {
-          content: [{ type: "text", text: jsonText(result) }],
+          content: [{ type: "text", text: toonText(result) }],
           details,
         };
       }
 
       if (input.operation === "cdp") {
+        refs.invalidate(tabId);
         const result = await cdp(
           tabId,
           requireString(input.method, "method"),
           input.params,
           signal,
         );
+        const output = toonText(result);
         return {
-          content: [{ type: "text", text: jsonText(result) }],
+          content: [
+            {
+              type: "text",
+              text: input.snapshotAfter
+                ? `${output}\n\n${await postcondition(tabId, snapshotOptions, signal)}`
+                : output,
+            },
+          ],
           details,
         };
       }
 
       if (input.operation === "snapshot") {
         return {
-          content: [{ type: "text", text: await snapshot(tabId, signal) }],
+          content: [
+            {
+              type: "text",
+              text: await snapshot(tabId, snapshotOptions, signal),
+            },
+          ],
           details,
         };
       }
@@ -512,16 +636,27 @@ export default function browserRelay(pi: ExtensionAPI) {
           throw new Error("navigate supports only http and https URLs");
         }
         await cdp(tabId, "Page.enable", undefined, signal);
+        refs.invalidate(tabId);
         await command({ action: "navigate", tabId, url: url.href }, signal);
         await waitForPage(tabId, signal);
         return {
-          content: [{ type: "text", text: await snapshot(tabId, signal) }],
+          content: [
+            {
+              type: "text",
+              text: await snapshot(tabId, snapshotOptions, signal),
+            },
+          ],
           details,
         };
       }
 
       if (input.operation === "click") {
-        const nodeId = requireNumber(input.nodeId, "nodeId");
+        const nodeId = resolveNodeId(
+          input.ref,
+          input.nodeId,
+          refs.current(tabId),
+        );
+        refs.invalidate(tabId);
         await cdp(
           tabId,
           "DOM.scrollIntoViewIfNeeded",
@@ -571,13 +706,23 @@ export default function browserRelay(pi: ExtensionAPI) {
           signal,
         );
         return {
-          content: [{ type: "text", text: await postcondition(tabId, signal) }],
+          content: [
+            {
+              type: "text",
+              text: await postcondition(tabId, snapshotOptions, signal),
+            },
+          ],
           details,
         };
       }
 
       if (input.operation === "type") {
-        const nodeId = requireNumber(input.nodeId, "nodeId");
+        const nodeId = resolveNodeId(
+          input.ref,
+          input.nodeId,
+          refs.current(tabId),
+        );
+        refs.invalidate(tabId);
         const text = input.text ?? "";
         await cdp(tabId, "DOM.focus", { backendNodeId: nodeId }, signal);
         if (input.clear) {
@@ -625,7 +770,12 @@ export default function browserRelay(pi: ExtensionAPI) {
         }
         await cdp(tabId, "Input.insertText", { text }, signal);
         return {
-          content: [{ type: "text", text: await postcondition(tabId, signal) }],
+          content: [
+            {
+              type: "text",
+              text: await postcondition(tabId, snapshotOptions, signal),
+            },
+          ],
           details,
         };
       }
@@ -633,6 +783,7 @@ export default function browserRelay(pi: ExtensionAPI) {
       if (input.operation === "press") {
         const key = requireString(input.key, "key");
         const description = keyDescription(key);
+        refs.invalidate(tabId);
         await cdp(
           tabId,
           "Input.dispatchKeyEvent",
@@ -646,13 +797,19 @@ export default function browserRelay(pi: ExtensionAPI) {
           signal,
         );
         return {
-          content: [{ type: "text", text: await postcondition(tabId, signal) }],
+          content: [
+            {
+              type: "text",
+              text: await postcondition(tabId, snapshotOptions, signal),
+            },
+          ],
           details,
         };
       }
 
       if (input.operation === "scroll") {
         const deltaY = input.deltaY ?? 600;
+        refs.invalidate(tabId);
         await cdp(
           tabId,
           "Runtime.evaluate",
@@ -663,13 +820,19 @@ export default function browserRelay(pi: ExtensionAPI) {
           signal,
         );
         return {
-          content: [{ type: "text", text: await postcondition(tabId, signal) }],
+          content: [
+            {
+              type: "text",
+              text: await postcondition(tabId, snapshotOptions, signal),
+            },
+          ],
           details,
         };
       }
 
       if (input.operation === "evaluate") {
         const expression = requireString(input.expression, "expression");
+        refs.invalidate(tabId);
         const result = asRecord(
           await cdp(
             tabId,
@@ -691,7 +854,9 @@ export default function browserRelay(pi: ExtensionAPI) {
           content: [
             {
               type: "text",
-              text: `${jsonText(value)}\n\n${await postcondition(tabId, signal)}`,
+              text: input.snapshotAfter
+                ? `${toonText(value)}\n\n${await postcondition(tabId, snapshotOptions, signal)}`
+                : toonText(value),
             },
           ],
           details,

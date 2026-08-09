@@ -17,8 +17,17 @@ The CDP and event operations support console, network, emulation, performance,
 CPU/heap profiling, dialog, upload, hover, and drag workflows. Page-changing
 calls require an exact tab ID and automatically return a new semantic snapshot.
 
+Snapshots default to a compact 16,000-character accessibility tree. Use `query`
+to focus a large page or `snapshotMode: "full"` for the 30,000-character escape
+hatch. Snapshot element refs include a generation, such as `g3:42`; stale refs
+fail before an action can target a changed page. Numeric `nodeId` remains
+available for compatibility. `newTab` returns its first snapshot, while
+`evaluate` and `cdp` add one only when `snapshotAfter` is true. Structured CDP,
+event, and evaluation results use TOON instead of JSON.
+
 `events` keeps at most 1,000 events and 512 KiB per tab, reports dropped events,
-returns at most 200 events per call, and drains returned events by default.
+returns 20 events by default and at most 200 per call, and drains returned
+events by default.
 Enable the corresponding CDP domain before collecting its events. Exact
 Lighthouse scoring is not included; it is an analysis layer above CDP rather
 than a browser-control capability.

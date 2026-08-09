@@ -7,6 +7,7 @@
     "test": "node --test --experimental-strip-types auth.test.ts ax.test.ts cdp-policy.test.ts event-buffer.test.ts output.test.ts server.test.ts tab-ready.test.js"
   },
   "dependencies": {
+    "@toon-format/toon": "2.1.0",
     "ws": "^8.21.1"
   },
   "devDependencies": {
