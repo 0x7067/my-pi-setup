@@ -9,8 +9,6 @@ const ALLOWED_COMMANDS = new Set([
   "Accessibility.queryAXTree",
   "Audits.checkContrast",
   "Audits.checkFormsIssues",
-  "Audits.disable",
-  "Audits.enable",
   "Audits.getEncodedResponse",
   "CSS.collectClassNames",
   "CSS.disable",
@@ -135,7 +133,6 @@ const ALLOWED_COMMANDS = new Set([
   "Log.startViolationsReport",
   "Log.stopViolationsReport",
   "Network.canEmulateNetworkConditions",
-  "Network.continueInterceptedRequest",
   "Network.disable",
   "Network.emulateNetworkConditions",
   "Network.emulateNetworkConditionsByRule",
@@ -149,7 +146,6 @@ const ALLOWED_COMMANDS = new Set([
   "Network.setBypassServiceWorker",
   "Network.setCacheDisabled",
   "Network.setExtraHTTPHeaders",
-  "Network.setRequestInterception",
   "Network.setUserAgentOverride",
   "Overlay.disable",
   "Overlay.enable",
@@ -231,7 +227,6 @@ const ALLOWED_COMMANDS = new Set([
 const ALLOWED_EVENTS = new Set([
   "Accessibility.loadComplete",
   "Accessibility.nodesUpdated",
-  "Audits.issueAdded",
   "CSS.fontsUpdated",
   "CSS.mediaQueryResultChanged",
   "CSS.styleSheetAdded",
@@ -247,6 +242,8 @@ const ALLOWED_EVENTS = new Set([
   "DOM.inlineStyleInvalidated",
   "DOM.setChildNodes",
   "Emulation.virtualTimeBudgetExpired",
+  "Fetch.authRequired",
+  "Fetch.requestPaused",
   "Log.entryAdded",
   "Network.dataReceived",
   "Network.loadingFailed",
@@ -263,8 +260,6 @@ const ALLOWED_EVENTS = new Set([
   "Page.lifecycleEvent",
   "Page.loadEventFired",
   "PerformanceTimeline.timelineEventAdded",
-  "Profiler.consoleProfileFinished",
-  "Profiler.consoleProfileStarted",
   "Runtime.bindingCalled",
   "Runtime.consoleAPICalled",
   "Runtime.exceptionRevoked",
@@ -331,6 +326,13 @@ function safeResponse(value) {
   };
 }
 
+function redactedHeaderEntries(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((header) => header && typeof header === "object")
+    .map((header) => ({ name: header.name, value: "[redacted]" }));
+}
+
 export function isAllowedCdpMethod(method) {
   return ALLOWED_COMMANDS.has(method);
 }
@@ -372,6 +374,38 @@ export function sanitizeCdpEvent(method, params) {
   }
   if (method === "Network.webSocketCreated") {
     return { requestId: params.requestId, url: safeUrl(params.url) };
+  }
+  if (method === "Fetch.requestPaused") {
+    return {
+      requestId: params.requestId,
+      request: safeRequest(params.request),
+      frameId: params.frameId,
+      resourceType: params.resourceType,
+      responseErrorReason: params.responseErrorReason,
+      responseStatusCode: params.responseStatusCode,
+      responseStatusText: params.responseStatusText,
+      responseHeaders: redactedHeaderEntries(params.responseHeaders),
+      networkId: params.networkId,
+      redirectedRequestId: params.redirectedRequestId,
+    };
+  }
+  if (method === "Fetch.authRequired") {
+    const challenge = params.authChallenge;
+    return {
+      requestId: params.requestId,
+      request: safeRequest(params.request),
+      frameId: params.frameId,
+      resourceType: params.resourceType,
+      authChallenge:
+        challenge && typeof challenge === "object"
+          ? {
+              source: challenge.source,
+              origin: safeUrl(challenge.origin),
+              scheme: challenge.scheme,
+              realm: challenge.realm,
+            }
+          : undefined,
+    };
   }
   return params;
 }

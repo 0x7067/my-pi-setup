@@ -23,8 +23,10 @@ test("allows tab-scoped DevTools capabilities", () => {
 test("captures events only from reviewed tab-scoped domains", () => {
   assert.equal(isAllowedCdpEvent("Network.requestWillBeSent"), true);
   assert.equal(isAllowedCdpEvent("Runtime.consoleAPICalled"), true);
+  assert.equal(isAllowedCdpEvent("Fetch.requestPaused"), true);
   assert.equal(isAllowedCdpEvent("Network.requestWillBeSentExtraInfo"), false);
   assert.equal(isAllowedCdpEvent("Network.responseReceivedExtraInfo"), false);
+  assert.equal(isAllowedCdpEvent("Audits.issueAdded"), false);
   assert.equal(isAllowedCdpEvent("HeapProfiler.addHeapSnapshotChunk"), false);
   assert.equal(isAllowedCdpEvent("Tracing.dataCollected"), false);
   assert.equal(isAllowedCdpEvent("Target.targetCreated"), false);
@@ -86,8 +88,32 @@ test("blocks browser-wide DevTools capabilities", () => {
     "Fetch.takeResponseBodyAsStream",
     "Network.getAllCookies",
     "Network.clearBrowserCookies",
+    "Network.setRequestInterception",
+    "Network.continueInterceptedRequest",
+    "Audits.enable",
     "Extensions.uninstall",
   ]) {
     assert.equal(isAllowedCdpMethod(method), false, method);
+  }
+});
+
+test("redacts Fetch interception credentials while retaining request IDs", () => {
+  const sanitized = sanitizeCdpEvent("Fetch.requestPaused", {
+    requestId: "fetch-one",
+    request: {
+      url: "https://example.com/api?token=secret",
+      method: "POST",
+      headers: { Cookie: "session=secret-cookie" },
+      postData: "password=hunter2",
+      hasPostData: true,
+    },
+    responseHeaders: [{ name: "Set-Cookie", value: "session=secret" }],
+  });
+  const text = JSON.stringify(sanitized);
+
+  assert.match(text, /fetch-one/);
+  assert.match(text, /\[redacted\]/);
+  for (const secret of ["secret", "secret-cookie", "hunter2"]) {
+    assert.equal(text.includes(secret), false, secret);
   }
 });
