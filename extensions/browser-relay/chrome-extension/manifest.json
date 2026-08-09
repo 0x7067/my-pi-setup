@@ -5,7 +5,6 @@
   "version": "1.0.0",
   "description": "Connect explicitly selected Chrome tabs to the local Pi browser-relay tool.",
   "permissions": ["debugger", "storage", "tabs"],
-  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

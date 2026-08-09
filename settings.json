@@ -11,7 +11,7 @@
   "packages": [
     "npm:pi-lens@3.8.74",
     "npm:pi-hermes-memory@0.9.2",
-    "git:github.com/dondai44423/master-fetch@abbde11fcc276225f8a7008959ee56209f9b59b5",
+    "../../.hound/pi-extension",
     "npm:@aliou/pi-synthetic@0.24.3"
   ],
   "treeFilterMode": "default",
