@@ -14,7 +14,7 @@ navigate, click or type against snapshot node IDs, press keys, scroll, evaluate
 JavaScript, and return PNG screenshots. Page-changing calls require an exact
 tab ID and automatically return a new semantic snapshot.
 
-The first Pi process starts the server on `127.0.0.1:9224`. Other Pi processes
+The first Pi process starts the server on `127.0.0.1:9234`. Other Pi processes
 reuse that server through its authenticated local HTTP API. Set
 `PI_BROWSER_RELAY_PORT` to choose another port.
 

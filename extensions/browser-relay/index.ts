@@ -10,7 +10,7 @@ import { formatAccessibilitySnapshot } from "./src/ax.ts";
 import type { BrowserTab, RelayCommand, RelayHealth } from "./src/protocol.ts";
 import { BrowserRelayServer, relayCommand, relayHealth } from "./src/server.ts";
 
-const DEFAULT_PORT = 9224;
+const DEFAULT_PORT = 9234;
 const TOKEN_PATH = join(homedir(), ".pi", "agent", "browser-relay.key");
 const EXTENSION_DIR = join(
   dirname(fileURLToPath(import.meta.url)),

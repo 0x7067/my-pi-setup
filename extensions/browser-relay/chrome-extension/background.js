@@ -1,6 +1,6 @@
 import { createRelayHandshake } from "./auth.js";
 
-const DEFAULT_PORT = 9224;
+const DEFAULT_PORT = 9234;
 const allowedTabs = new Set();
 const attachedTabs = new Set();
 let socket;

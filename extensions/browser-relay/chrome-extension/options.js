@@ -3,7 +3,7 @@ const port = document.querySelector("#port");
 const token = document.querySelector("#token");
 const status = document.querySelector("#status");
 
-const saved = await chrome.storage.local.get({ port: 9224, token: "" });
+const saved = await chrome.storage.local.get({ port: 9234, token: "" });
 port.value = String(saved.port);
 token.value = saved.token;
 
