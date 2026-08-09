@@ -1,9 +1,9 @@
 export interface VccSections {
-	sessionGoal: string[];
-	filesAndChanges: string[];
-	outstandingContext: string[];
-	userPreferences: string[];
-	briefTranscript: string;
+  sessionGoal: string[];
+  filesAndChanges: string[];
+  outstandingContext: string[];
+  userPreferences: string[];
+  briefTranscript: string;
 }
 
 export function normalize(messages: readonly unknown[]): unknown[];

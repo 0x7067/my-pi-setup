@@ -10,8 +10,10 @@ This setup is intentionally opinionated. It:
 - adds workflows to pi
 - adds an ask user tool, which lets the model ask multiple choice questions
 - adds first-class `fd` (file discovery) and `rg` (content search) tools
+- adds an authenticated relay for inspecting and controlling selected Chrome tabs
+- adds a private local dashboard for Pi usage, cost, models, projects, and cache reuse
 - adds Pi Lens, Hermes memory, run summaries, and Calm mode
-- enables automatic compaction
+- vendors Codex-style OpenAI compaction with a Pi 0.84 compatibility patch
 
 Project-local extensions prompt for trust by default. Claude and Codex
 subagents are autonomous processes with normal host permissions, so only launch

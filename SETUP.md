@@ -16,8 +16,17 @@ npm run check
 npm test
 ```
 
-The package sources in `settings.json` are pinned. Run `pi install` with a new
-explicit version or commit when intentionally upgrading one of them.
+The registry and Git package sources in `settings.json` are pinned. The local
+Hound source is accepted only when doctor finds
+`@houndmcp/hound-mcp-pi@13.1.1` and its expected extension entrypoint. Run
+`pi install` with a new explicit version or commit when intentionally upgrading
+one of the other packages, and update the doctor expectation with Hound.
+
+Remote OpenAI compaction is vendored under
+`extensions/openai-server-compaction` from upstream commit
+`8a3de2f3b0c178fdd6f73f2f94172dfc3943e466`. Its local compatibility patch
+filters null provider-header values introduced by Pi 0.84 before making remote
+requests. Update the vendored source and its recorded upstream commit together.
 
 ## Firecrawl
 
@@ -56,3 +65,20 @@ manually while keeping your other settings:
 ```
 
 Pi will load the extensions, skills, and theme from their directories the next time it starts.
+
+## Browser relay
+
+Run `/browser-relay setup` inside Pi. In Chrome, open `chrome://extensions`,
+enable Developer mode, choose **Load unpacked**, and select the directory Pi
+shows. Paste the private relay token into the extension options. The toolbar
+badge reads `on` when the loopback bridge is connected.
+
+The token is stored at `~/.pi/agent/browser-relay.key` with private file
+permissions and is ignored by Git. Do not share it: a process with the token can
+control tabs attached by the Chrome extension.
+
+## Stats
+
+Run `/stats` to start the private, loopback-only usage dashboard or
+`/stats summary` for an in-Pi rollup. The dashboard exists only while that Pi
+session remains open and reads session JSONL files without modifying them.

@@ -73,14 +73,46 @@ if (settings.compaction?.enabled !== true) {
 }
 
 for (const source of settings.packages ?? []) {
-  if (source.startsWith("npm:") && source.lastIndexOf("@") <= 3) {
-    failures.push(`npm package is not pinned: ${source}`);
+  if (source.startsWith("npm:")) {
+    const spec = source.slice("npm:".length);
+    const separator = spec.lastIndexOf("@");
+    const version = spec.slice(separator + 1);
+    if (
+      separator <= spec.lastIndexOf("/") ||
+      !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)
+    ) {
+      failures.push(`npm package is not pinned: ${source}`);
+    }
   }
   if (source.startsWith("git:") && !source.includes("@")) {
     failures.push(`git package is not pinned: ${source}`);
   }
   if (source.startsWith(".") || source.startsWith("/")) {
-    failures.push(`machine-local package source remains: ${source}`);
+    if (source !== "../../.hound/pi-extension") {
+      failures.push(
+        `unexpected machine-local package source remains: ${source}`,
+      );
+      continue;
+    }
+    const houndPackage = await readJson(
+      join(agentDir, source, "package.json"),
+    ).catch(() => undefined);
+    const houndEntrypoint = await lstat(
+      join(agentDir, source, "extensions/hound.ts"),
+    ).catch(() => undefined);
+    const houndExtensions = houndPackage?.pi?.extensions;
+    if (
+      houndPackage?.name !== "@houndmcp/hound-mcp-pi" ||
+      houndPackage?.version !== "13.1.1" ||
+      !Array.isArray(houndExtensions) ||
+      houndExtensions.length !== 1 ||
+      houndExtensions[0] !== "./extensions/hound.ts" ||
+      !houndEntrypoint?.isFile()
+    ) {
+      failures.push(
+        "../../.hound/pi-extension must be @houndmcp/hound-mcp-pi@13.1.1 with its Hound entrypoint",
+      );
+    }
   }
 }
 
@@ -102,39 +134,78 @@ for (const path of [
   await expectMode(path, 0o700);
 }
 
-const pi = spawnSync("pi", ["--version"], {
-  cwd: agentDir,
-  encoding: "utf8",
-  env: { ...process.env, PI_OFFLINE: "1" },
-});
-if (pi.status !== 0) {
-  failures.push(`pi --version failed: ${(pi.stderr || pi.stdout).trim()}`);
+const installedPiPackage = await readJson(
+  join(
+    agentDir,
+    "node_modules",
+    "@earendil-works",
+    "pi-coding-agent",
+    "package.json",
+  ),
+).catch(() => undefined);
+const installedPiVersion = installedPiPackage?.version;
+if (typeof installedPiVersion !== "string" || !installedPiVersion) {
+  failures.push(
+    "installed @earendil-works/pi-coding-agent version is unavailable",
+  );
 } else {
-  console.log(`Pi ${pi.stdout.trim()}`);
+  console.log(`Pi ${installedPiVersion}`);
   const configuredVersion =
     rootPackage.dependencies?.["@earendil-works/pi-coding-agent"];
-  if (configuredVersion !== pi.stdout.trim()) {
+  if (configuredVersion !== installedPiVersion) {
     failures.push(
-      `package.json pins Pi ${configuredVersion ?? "nothing"}, but the installed Pi is ${pi.stdout.trim()}`,
+      `package.json pins Pi ${configuredVersion ?? "nothing"}, but the installed Pi is ${installedPiVersion}`,
     );
   }
 }
 
+const shell = process.env.SHELL || "/bin/sh";
+const resolvedPi = spawnSync(shell, ["-lc", "command -v pi"], {
+  cwd: agentDir,
+  encoding: "utf8",
+});
+const runtimePiPath = resolvedPi.stdout.trim();
+let runtimePiVersion;
+if (resolvedPi.status !== 0 || !runtimePiPath) {
+  failures.push("the login shell cannot resolve the pi executable");
+} else {
+  const runtimePi = spawnSync(runtimePiPath, ["--version"], {
+    cwd: agentDir,
+    encoding: "utf8",
+    env: { ...process.env, PI_OFFLINE: "1" },
+  });
+  runtimePiVersion = runtimePi.stdout.trim();
+  if (runtimePi.status !== 0 || !runtimePiVersion) {
+    failures.push(
+      `${runtimePiPath} --version failed: ${(runtimePi.stderr || runtimePi.stdout).trim()}`,
+    );
+  } else {
+    console.log(`Pi runtime ${runtimePiVersion} (${runtimePiPath})`);
+    const configuredVersion =
+      rootPackage.dependencies?.["@earendil-works/pi-coding-agent"];
+    if (configuredVersion !== runtimePiVersion) {
+      failures.push(
+        `package.json pins Pi ${configuredVersion ?? "nothing"}, but the login-shell Pi is ${runtimePiVersion}`,
+      );
+    }
+  }
+}
+
 const compactionPackage = await readJson(
-  join(
-    agentDir,
-    "git/github.com/algal/pi-openai-server-compaction/package.json",
-  ),
+  join(agentDir, "extensions/openai-server-compaction/package.json"),
 ).catch(() => undefined);
+if (!compactionPackage) {
+  failures.push("vendored remote compaction package is unavailable");
+}
 const compactionRange =
   compactionPackage?.peerDependencies?.["@earendil-works/pi-coding-agent"];
 if (
   compactionRange &&
-  pi.status === 0 &&
-  !satisfiesSimpleRange(pi.stdout.trim(), compactionRange)
+  runtimePiVersion &&
+  !satisfiesSimpleRange(runtimePiVersion, compactionRange)
 ) {
-  warnings.push(
-    `remote compaction declares Pi ${compactionRange}, but the installed Pi is ${pi.stdout.trim()}`,
+  failures.push(
+    `remote compaction declares Pi ${compactionRange}, but the login-shell Pi is ${runtimePiVersion}`,
   );
 }
 
