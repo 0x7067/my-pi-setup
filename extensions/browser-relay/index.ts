@@ -380,15 +380,16 @@ export default function browserRelay(pi: ExtensionAPI) {
     name: "browser-relay",
     label: "Browser Relay",
     description:
-      "Inspect and control an existing logged-in Chrome tab through the user's loopback-only relay. List tabs first, then use the exact tabId. Mutating operations automatically return a fresh accessibility snapshot for verification.",
+      "Inspect and control an explicitly shared, logged-in Chrome or Edge tab through the user's loopback-only relay. List tabs first, then use the exact tabId. Ergonomic page-changing operations automatically return a fresh accessibility snapshot; advanced CDP mutations require a separate verification call.",
     promptSnippet:
       "Inspect and control an explicitly selected existing Chrome tab through the local authenticated relay",
     promptGuidelines: [
       "Call browser-relay with operation=tabs before acting, then use the exact tabId returned for every page-changing operation.",
       "Use snapshot before click or type, and address elements with the nodeId from that snapshot.",
-      "Use cdp for advanced Chrome DevTools Protocol operations. Enable the relevant domain before polling events; events are bounded and drained by default.",
+      "Use cdp for advanced tab-scoped Chrome DevTools Protocol operations. Enable the relevant domain before polling events; events are bounded and drained by default.",
       "newTab explicitly shares only the tab it creates. Existing tabs remain unavailable until the user shares them with the toolbar icon.",
-      "Do not navigate, click, type, press keys, or evaluate JavaScript until the user-authorized account, tab, and target are clear.",
+      "Do not navigate, click, type, press keys, evaluate JavaScript, use cdp, create/activate/close tabs, or upload files until the user-authorized account, tab, file, and target are clear.",
+      "After any mutating cdp call, verify the semantic postcondition with snapshot, tabs, events, or another authoritative read.",
     ],
     executionMode: "sequential",
     parameters,
@@ -503,7 +504,7 @@ export default function browserRelay(pi: ExtensionAPI) {
           throw new Error("navigate supports only http and https URLs");
         }
         await cdp(tabId, "Page.enable", undefined, signal);
-        await cdp(tabId, "Page.navigate", { url: url.href }, signal);
+        await command({ action: "navigate", tabId, url: url.href }, signal);
         await waitForPage(tabId, signal);
         return {
           content: [{ type: "text", text: await snapshot(tabId, signal) }],

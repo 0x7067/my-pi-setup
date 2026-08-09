@@ -9,6 +9,7 @@ export interface BrowserTab {
 export type RelayCommand =
   | { action: "tabs" }
   | { action: "newTab"; url: string }
+  | { action: "navigate"; tabId: number; url: string }
   | { action: "activateTab"; tabId: number }
   | { action: "closeTab"; tabId: number }
   | {

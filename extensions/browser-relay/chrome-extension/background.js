@@ -1,5 +1,5 @@
 import { createRelayHandshake } from "./auth.js";
-import { isAllowedCdpMethod } from "./cdp-policy.js";
+import { isAllowedCdpEvent, isAllowedCdpMethod } from "./cdp-policy.js";
 import { RelayEventBuffer } from "./event-buffer.js";
 
 const DEFAULT_PORT = 9234;
@@ -147,6 +147,17 @@ async function execute(command) {
       clear: command.clear ?? true,
     });
   }
+  if (command.action === "navigate") {
+    const url = new URL(command.url);
+    if (!new Set(["http:", "https:"]).has(url.protocol)) {
+      throw new Error("navigate supports only http and https URLs");
+    }
+    return await chrome.debugger.sendCommand(
+      { tabId: command.tabId },
+      "Page.navigate",
+      { url: url.href },
+    );
+  }
   if (
     command.action !== "cdp" ||
     typeof command.method !== "string" ||
@@ -273,7 +284,7 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
     source.tabId !== undefined &&
     attachedTabs.has(source.tabId) &&
     allowedTabs.has(source.tabId) &&
-    isAllowedCdpMethod(method)
+    isAllowedCdpEvent(method)
   ) {
     debuggerEvents.push(source.tabId, method, params);
   }

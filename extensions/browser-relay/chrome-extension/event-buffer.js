@@ -16,7 +16,7 @@ export class RelayEventBuffer {
 
   push(tabId, method, params) {
     const event = { method, params, timestamp: Date.now() };
-    const bytes = JSON.stringify(event).length;
+    const bytes = new TextEncoder().encode(JSON.stringify(event)).byteLength;
     const state = this.#tabs.get(tabId) ?? {
       entries: [],
       bytes: 0,

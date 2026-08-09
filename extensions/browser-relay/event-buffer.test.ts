@@ -37,3 +37,12 @@ test("filters and drains only returned debugger events", () => {
   );
   assert.equal(remaining.pending, 0);
 });
+
+test("enforces the byte cap using UTF-8 bytes", () => {
+  const events = new RelayEventBuffer({ maxEvents: 10, maxBytes: 130 });
+  events.push(7, "Runtime.consoleAPICalled", { value: "😀".repeat(20) });
+
+  const drained = events.drain(7);
+  assert.equal(drained.events.length, 0);
+  assert.equal(drained.dropped, 1);
+});

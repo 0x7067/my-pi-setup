@@ -74,6 +74,9 @@ function isRelayCommand(value: unknown): value is RelayCommand {
   const command = value as Record<string, unknown>;
   if (command.action === "tabs") return true;
   if (command.action === "newTab") return typeof command.url === "string";
+  if (command.action === "navigate") {
+    return Number.isInteger(command.tabId) && typeof command.url === "string";
+  }
   if (command.action === "activateTab" || command.action === "closeTab") {
     return Number.isInteger(command.tabId);
   }

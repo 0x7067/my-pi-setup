@@ -11,11 +11,11 @@ marks shared tabs. Click it again to revoke access.
 
 The `browser-relay` tool can list tabs, capture accessibility snapshots,
 navigate, click or type against snapshot node IDs, press keys, scroll, evaluate
-JavaScript, return PNG screenshots, create/activate/close shared tabs, send any
-Chrome DevTools Protocol command, and drain bounded debugger events. The CDP
-and event operations support console, network, emulation, tracing, performance,
-heap, dialog, upload, hover, and drag workflows. Page-changing calls require an
-exact tab ID and automatically return a new semantic snapshot.
+JavaScript, return PNG screenshots, create/activate/close shared tabs, send
+tab-scoped Chrome DevTools Protocol commands, and drain bounded debugger events.
+The CDP and event operations support console, network, emulation, performance,
+CPU/heap profiling, dialog, upload, hover, and drag workflows. Page-changing
+calls require an exact tab ID and automatically return a new semantic snapshot.
 
 `events` keeps at most 1,000 events and 4 MiB per tab, reports dropped events,
 returns at most 200 events per call, and drains returned events by default.
@@ -23,11 +23,13 @@ Enable the corresponding CDP domain before collecting its events. Exact
 Lighthouse scoring is not included; it is an analysis layer above CDP rather
 than a browser-control capability.
 
-The generic CDP surface includes tab-scoped Accessibility, Audits, CSS, DOM,
-Emulation, Fetch, HeapProfiler, Input, Log, Network, Overlay, Page, Performance,
-Profiler, Runtime, and Tracing domains. Browser-wide Browser, Target, Storage,
-Extensions, and cookie-management commands stay blocked so generic CDP cannot
-bypass the per-tab sharing boundary.
+The advanced CDP surface includes reviewed tab-scoped methods from
+Accessibility, Audits, CSS, DOM, Emulation, Fetch, HeapProfiler, Input, Log,
+Network, Overlay, Page, Performance, Profiler, and Runtime. Browser-wide
+Browser, Target, Storage, Tracing, Extensions, cookie/cache management, crash,
+raw navigation, download-policy, streamed-body, and heap-snapshot commands stay
+blocked so CDP cannot bypass the per-tab sharing or bounded-output boundaries.
+Use the validated `navigate` operation for HTTP(S) navigation.
 
 The first Pi process starts the server on `127.0.0.1:9234`. Other Pi processes
 reuse that server through its authenticated local HTTP API. Set
