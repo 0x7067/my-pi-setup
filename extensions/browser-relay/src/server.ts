@@ -73,12 +73,32 @@ function isRelayCommand(value: unknown): value is RelayCommand {
   if (!value || typeof value !== "object" || !("action" in value)) return false;
   const command = value as Record<string, unknown>;
   if (command.action === "tabs") return true;
+  if (command.action === "newTab") return typeof command.url === "string";
+  if (command.action === "activateTab" || command.action === "closeTab") {
+    return Number.isInteger(command.tabId);
+  }
+  if (command.action === "events") {
+    return (
+      Number.isInteger(command.tabId) &&
+      (command.methodPrefix === undefined ||
+        typeof command.methodPrefix === "string") &&
+      (command.limit === undefined ||
+        (Number.isInteger(command.limit) &&
+          Number(command.limit) >= 1 &&
+          Number(command.limit) <= 200)) &&
+      (command.clear === undefined || typeof command.clear === "boolean")
+    );
+  }
   return (
     command.action === "cdp" &&
     Number.isInteger(command.tabId) &&
     typeof command.method === "string" &&
+    command.method.length > 0 &&
+    command.method.length <= 256 &&
     (command.params === undefined ||
-      (!!command.params && typeof command.params === "object"))
+      (!!command.params &&
+        typeof command.params === "object" &&
+        !Array.isArray(command.params)))
   );
 }
 

@@ -1,8 +1,11 @@
 import { createRelayHandshake } from "./auth.js";
+import { isAllowedCdpMethod } from "./cdp-policy.js";
+import { RelayEventBuffer } from "./event-buffer.js";
 
 const DEFAULT_PORT = 9234;
 const allowedTabs = new Set();
 const attachedTabs = new Set();
+const debuggerEvents = new RelayEventBuffer();
 let socket;
 let reconnectDelay = 1000;
 let reconnectTimer;
@@ -54,6 +57,7 @@ const allowedTabsReady = restoreAllowedTabs();
 async function detachAll() {
   const tabIds = [...attachedTabs];
   attachedTabs.clear();
+  debuggerEvents.clearAll();
   await Promise.allSettled(
     tabIds.map((tabId) => chrome.debugger.detach({ tabId })),
   );
@@ -61,14 +65,21 @@ async function detachAll() {
 
 async function ensureAttached(tabId) {
   await allowedTabsReady;
+  await requireAllowedTab(tabId);
+  if (attachedTabs.has(tabId)) return;
+  await chrome.debugger.attach({ tabId }, "1.3");
+  attachedTabs.add(tabId);
+}
+
+async function requireAllowedTab(tabId) {
   if (!allowedTabs.has(tabId)) {
     throw new Error(
       `Tab ${tabId} is not shared. Click the Pi Browser Relay toolbar icon on that tab first.`,
     );
   }
-  if (attachedTabs.has(tabId)) return;
-  await chrome.debugger.attach({ tabId }, "1.3");
-  attachedTabs.add(tabId);
+  const tab = await chrome.tabs.get(tabId);
+  if (!isAttachable(tab.url)) throw new Error(`Tab ${tabId} is not attachable`);
+  return tab;
 }
 
 async function execute(command) {
@@ -92,10 +103,62 @@ async function execute(command) {
         })),
     };
   }
-  if (command.action !== "cdp" || !Number.isInteger(command.tabId)) {
+  if (command.action === "newTab") {
+    const url = new URL(command.url);
+    if (!new Set(["http:", "https:"]).has(url.protocol)) {
+      throw new Error("newTab supports only http and https URLs");
+    }
+    const tab = await chrome.tabs.create({ url: url.href, active: true });
+    if (!Number.isInteger(tab.id)) throw new Error("Chrome created no tab ID");
+    allowedTabs.add(tab.id);
+    await setTabBadge(tab.id, true);
+    await saveAllowedTabs();
+    return {
+      id: tab.id,
+      windowId: tab.windowId,
+      active: tab.active,
+      title: tab.title ?? "",
+      url: tab.url ?? url.href,
+    };
+  }
+  if (!Number.isInteger(command.tabId)) {
     throw new Error("Invalid relay command");
   }
+  if (command.action === "activateTab") {
+    await requireAllowedTab(command.tabId);
+    const tab = await chrome.tabs.update(command.tabId, { active: true });
+    await chrome.windows.update(tab.windowId, { focused: true });
+    return { activated: true };
+  }
+  if (command.action === "closeTab") {
+    await requireAllowedTab(command.tabId);
+    debuggerEvents.clear(command.tabId);
+    attachedTabs.delete(command.tabId);
+    allowedTabs.delete(command.tabId);
+    await saveAllowedTabs();
+    await chrome.tabs.remove(command.tabId);
+    return { closed: true };
+  }
   await ensureAttached(command.tabId);
+  if (command.action === "events") {
+    return debuggerEvents.drain(command.tabId, {
+      methodPrefix: command.methodPrefix ?? "",
+      limit: command.limit ?? 100,
+      clear: command.clear ?? true,
+    });
+  }
+  if (
+    command.action !== "cdp" ||
+    typeof command.method !== "string" ||
+    !command.method
+  ) {
+    throw new Error("Invalid relay command");
+  }
+  if (!isAllowedCdpMethod(command.method)) {
+    throw new Error(
+      `CDP method ${command.method} is outside the tab-scoped allowlist`,
+    );
+  }
   return await chrome.debugger.sendCommand(
     { tabId: command.tabId },
     command.method,
@@ -195,11 +258,25 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  debuggerEvents.clear(tabId);
   attachedTabs.delete(tabId);
   if (allowedTabs.delete(tabId)) void saveAllowedTabs();
 });
 chrome.debugger.onDetach.addListener((source) => {
-  if (source.tabId !== undefined) attachedTabs.delete(source.tabId);
+  if (source.tabId !== undefined) {
+    attachedTabs.delete(source.tabId);
+    debuggerEvents.clear(source.tabId);
+  }
+});
+chrome.debugger.onEvent.addListener((source, method, params) => {
+  if (
+    source.tabId !== undefined &&
+    attachedTabs.has(source.tabId) &&
+    allowedTabs.has(source.tabId) &&
+    isAllowedCdpMethod(method)
+  ) {
+    debuggerEvents.push(source.tabId, method, params);
+  }
 });
 chrome.storage.onChanged.addListener((_changes, area) => {
   if (area === "local") void connect();

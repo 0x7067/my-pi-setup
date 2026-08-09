@@ -8,6 +8,16 @@ export interface BrowserTab {
 
 export type RelayCommand =
   | { action: "tabs" }
+  | { action: "newTab"; url: string }
+  | { action: "activateTab"; tabId: number }
+  | { action: "closeTab"; tabId: number }
+  | {
+      action: "events";
+      tabId: number;
+      methodPrefix?: string;
+      limit?: number;
+      clear?: boolean;
+    }
   | {
       action: "cdp";
       tabId: number;

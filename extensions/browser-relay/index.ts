@@ -27,6 +27,11 @@ const operation = Type.Union([
   Type.Literal("scroll"),
   Type.Literal("evaluate"),
   Type.Literal("screenshot"),
+  Type.Literal("cdp"),
+  Type.Literal("events"),
+  Type.Literal("newTab"),
+  Type.Literal("activateTab"),
+  Type.Literal("closeTab"),
 ]);
 
 const parameters = Type.Object({
@@ -38,7 +43,9 @@ const parameters = Type.Object({
         "Exact tab ID returned by tabs. Required for page-changing operations.",
     }),
   ),
-  url: Type.Optional(Type.String({ description: "URL for navigate" })),
+  url: Type.Optional(
+    Type.String({ description: "HTTP(S) URL for navigate or newTab" }),
+  ),
   nodeId: Type.Optional(
     Type.Integer({
       minimum: 1,
@@ -60,6 +67,31 @@ const parameters = Type.Object({
   ),
   fullPage: Type.Optional(
     Type.Boolean({ description: "Capture the full document in screenshot" }),
+  ),
+  method: Type.Optional(
+    Type.String({
+      minLength: 1,
+      maxLength: 256,
+      description: "Chrome DevTools Protocol method for cdp",
+    }),
+  ),
+  params: Type.Optional(
+    Type.Record(Type.String(), Type.Unknown(), {
+      description: "Chrome DevTools Protocol parameters for cdp",
+    }),
+  ),
+  methodPrefix: Type.Optional(
+    Type.String({
+      description:
+        "Optional debugger-event method prefix, such as Network. or Runtime.",
+    }),
+  ),
+  limit: Type.Optional(
+    Type.Integer({
+      minimum: 1,
+      maximum: 200,
+      description: "Maximum debugger events to return (default 100)",
+    }),
   ),
 });
 
@@ -146,6 +178,10 @@ function asRecord(value: unknown) {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function jsonText(value: unknown) {
+  return JSON.stringify(value, null, 2) ?? "null";
 }
 
 function keyDescription(key: string) {
@@ -350,6 +386,8 @@ export default function browserRelay(pi: ExtensionAPI) {
     promptGuidelines: [
       "Call browser-relay with operation=tabs before acting, then use the exact tabId returned for every page-changing operation.",
       "Use snapshot before click or type, and address elements with the nodeId from that snapshot.",
+      "Use cdp for advanced Chrome DevTools Protocol operations. Enable the relevant domain before polling events; events are bounded and drained by default.",
+      "newTab explicitly shares only the tab it creates. Existing tabs remain unavailable until the user shares them with the toolbar icon.",
       "Do not navigate, click, type, press keys, or evaluate JavaScript until the user-authorized account, tab, and target are clear.",
     ],
     executionMode: "sequential",
@@ -383,7 +421,75 @@ export default function browserRelay(pi: ExtensionAPI) {
         };
       }
 
+      if (input.operation === "newTab") {
+        const url = new URL(requireString(input.url, "url"));
+        if (!new Set(["http:", "https:"]).has(url.protocol)) {
+          throw new Error("newTab supports only http and https URLs");
+        }
+        const created = asRecord(
+          await command({ action: "newTab", url: url.href }, signal),
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Created and shared tab ${String(created.id)} at ${String(created.url)}.`,
+            },
+          ],
+          details: {
+            ...details,
+            tabId: typeof created.id === "number" ? created.id : details.tabId,
+          },
+        };
+      }
+
       const tabId = requireNumber(input.tabId, "tabId");
+      if (input.operation === "activateTab") {
+        await command({ action: "activateTab", tabId }, signal);
+        return {
+          content: [{ type: "text", text: `Activated tab ${tabId}.` }],
+          details,
+        };
+      }
+
+      if (input.operation === "closeTab") {
+        await command({ action: "closeTab", tabId }, signal);
+        return {
+          content: [{ type: "text", text: `Closed shared tab ${tabId}.` }],
+          details,
+        };
+      }
+
+      if (input.operation === "events") {
+        const result = await command(
+          {
+            action: "events",
+            tabId,
+            methodPrefix: input.methodPrefix,
+            limit: input.limit,
+            clear: input.clear,
+          },
+          signal,
+        );
+        return {
+          content: [{ type: "text", text: jsonText(result) }],
+          details,
+        };
+      }
+
+      if (input.operation === "cdp") {
+        const result = await cdp(
+          tabId,
+          requireString(input.method, "method"),
+          input.params,
+          signal,
+        );
+        return {
+          content: [{ type: "text", text: jsonText(result) }],
+          details,
+        };
+      }
+
       if (input.operation === "snapshot") {
         return {
           content: [{ type: "text", text: await snapshot(tabId, signal) }],
