@@ -97,10 +97,17 @@ for (const source of settings.packages ?? []) {
     const houndPackage = await readJson(
       join(agentDir, source, "package.json"),
     ).catch(() => undefined);
+    const houndEntrypoint = await lstat(
+      join(agentDir, source, "extensions/hound.ts"),
+    ).catch(() => undefined);
+    const houndExtensions = houndPackage?.pi?.extensions;
     if (
       houndPackage?.name !== "@houndmcp/hound-mcp-pi" ||
       houndPackage?.version !== "13.1.1" ||
-      !houndPackage?.pi?.extensions?.includes("./extensions/hound.ts")
+      !Array.isArray(houndExtensions) ||
+      houndExtensions.length !== 1 ||
+      houndExtensions[0] !== "./extensions/hound.ts" ||
+      !houndEntrypoint?.isFile()
     ) {
       failures.push(
         "../../.hound/pi-extension must be @houndmcp/hound-mcp-pi@13.1.1 with its Hound entrypoint",
