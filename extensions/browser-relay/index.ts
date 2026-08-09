@@ -17,6 +17,7 @@ const EXTENSION_DIR = join(
   "chrome-extension",
 );
 const MAX_TOOL_JSON_BYTES = 1024 * 1024;
+const SCREENSHOT_TIMEOUT_MS = 15_000;
 
 const operation = Type.Union([
   Type.Literal("tabs"),
@@ -394,7 +395,7 @@ export default function browserRelay(pi: ExtensionAPI) {
       "Call browser-relay with operation=tabs before acting, then use the exact tabId returned for every page-changing operation.",
       "Use snapshot before click or type, and address elements with the nodeId from that snapshot.",
       "Use cdp for advanced tab-scoped Chrome DevTools Protocol operations. Enable the relevant domain before polling events; events are bounded and drained by default.",
-      "newTab opens and shares a background tab. Existing tabs remain unavailable until the user shares them with the toolbar icon. Use activateTab only when the user explicitly asks to focus that tab.",
+      "newTab opens and shares a background tab. Existing tabs remain unavailable until the user shares them with the toolbar icon. Use activateTab only when the user explicitly asks to focus that tab, and never focus a tab through cdp. A background tab stops painting, so read it with snapshot instead of screenshot.",
       "Do not navigate, click, type, press keys, evaluate JavaScript, use cdp, create/activate/close tabs, or upload files until the user-authorized account, tab, file, and target are clear.",
       "After any mutating cdp call, verify the semantic postcondition with snapshot, tabs, events, or another authoritative read.",
     ],
@@ -721,9 +722,22 @@ export default function browserRelay(pi: ExtensionAPI) {
           };
         }
       }
-      const result = asRecord(
-        await cdp(tabId, "Page.captureScreenshot", capture, signal),
-      );
+      const paintTimeout = AbortSignal.timeout(SCREENSHOT_TIMEOUT_MS);
+      let captured: unknown;
+      try {
+        captured = await cdp(
+          tabId,
+          "Page.captureScreenshot",
+          capture,
+          signal ? AbortSignal.any([signal, paintTimeout]) : paintTimeout,
+        );
+      } catch (error) {
+        if (!paintTimeout.aborted) throw error;
+        throw new Error(
+          `Chrome returned no frame for tab ${tabId} within ${SCREENSHOT_TIMEOUT_MS}ms. A background tab stops painting, and a full-page capture of a long page can also exceed this budget. Use snapshot to read this tab, or ask the user before you call activateTab on it.`,
+        );
+      }
+      const result = asRecord(captured);
       if (typeof result.data !== "string")
         throw new Error("Chrome returned no screenshot data");
       const image: ImageContent = {
