@@ -394,7 +394,7 @@ export default function browserRelay(pi: ExtensionAPI) {
       "Call browser-relay with operation=tabs before acting, then use the exact tabId returned for every page-changing operation.",
       "Use snapshot before click or type, and address elements with the nodeId from that snapshot.",
       "Use cdp for advanced tab-scoped Chrome DevTools Protocol operations. Enable the relevant domain before polling events; events are bounded and drained by default.",
-      "newTab explicitly shares only the tab it creates. Existing tabs remain unavailable until the user shares them with the toolbar icon.",
+      "newTab opens and shares a background tab. Existing tabs remain unavailable until the user shares them with the toolbar icon. Use activateTab only when the user explicitly asks to focus that tab.",
       "Do not navigate, click, type, press keys, evaluate JavaScript, use cdp, create/activate/close tabs, or upload files until the user-authorized account, tab, file, and target are clear.",
       "After any mutating cdp call, verify the semantic postcondition with snapshot, tabs, events, or another authoritative read.",
     ],

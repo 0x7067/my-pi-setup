@@ -115,7 +115,7 @@ async function execute(command) {
     if (!new Set(["http:", "https:"]).has(url.protocol)) {
       throw new Error("newTab supports only http and https URLs");
     }
-    const created = await chrome.tabs.create({ url: url.href, active: true });
+    const created = await chrome.tabs.create({ url: url.href, active: false });
     if (!Number.isInteger(created.id)) {
       throw new Error("Chrome created no tab ID");
     }
