@@ -5,6 +5,7 @@ import {
   sanitizeCdpEvent,
 } from "./cdp-policy.js";
 import { RelayEventBuffer } from "./event-buffer.js";
+import { waitForCommittedTab } from "./tab-ready.js";
 
 const DEFAULT_PORT = 9234;
 const allowedTabs = new Set();
@@ -21,6 +22,10 @@ function errorMessage(error) {
 
 function isAttachable(url) {
   return /^(https?|file):/.test(url ?? "");
+}
+
+function isAttachableTab(tab) {
+  return isAttachable(tab.url) || isAttachable(tab.pendingUrl);
 }
 
 async function options() {
@@ -82,7 +87,9 @@ async function requireAllowedTab(tabId) {
     );
   }
   const tab = await chrome.tabs.get(tabId);
-  if (!isAttachable(tab.url)) throw new Error(`Tab ${tabId} is not attachable`);
+  if (!isAttachableTab(tab)) {
+    throw new Error(`Tab ${tabId} is not attachable`);
+  }
   return tab;
 }
 
@@ -96,7 +103,7 @@ async function execute(command) {
           (tab) =>
             Number.isInteger(tab.id) &&
             allowedTabs.has(tab.id) &&
-            isAttachable(tab.url),
+            isAttachableTab(tab),
         )
         .map((tab) => ({
           id: tab.id,
@@ -112,13 +119,22 @@ async function execute(command) {
     if (!new Set(["http:", "https:"]).has(url.protocol)) {
       throw new Error("newTab supports only http and https URLs");
     }
-    const tab = await chrome.tabs.create({ url: url.href, active: true });
-    if (!Number.isInteger(tab.id)) throw new Error("Chrome created no tab ID");
-    allowedTabs.add(tab.id);
-    await setTabBadge(tab.id, true);
+    const created = await chrome.tabs.create({ url: url.href, active: true });
+    if (!Number.isInteger(created.id)) {
+      throw new Error("Chrome created no tab ID");
+    }
+    let tab;
+    try {
+      tab = await waitForCommittedTab(chrome.tabs, created.id, isAttachable);
+    } catch (error) {
+      await chrome.tabs.remove(created.id);
+      throw error;
+    }
+    allowedTabs.add(created.id);
+    await setTabBadge(created.id, true);
     await saveAllowedTabs();
     return {
-      id: tab.id,
+      id: created.id,
       windowId: tab.windowId,
       active: tab.active,
       title: tab.title ?? "",

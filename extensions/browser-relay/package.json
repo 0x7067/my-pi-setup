@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit -p .",
-    "test": "node --test --experimental-strip-types auth.test.ts ax.test.ts cdp-policy.test.ts event-buffer.test.ts output.test.ts server.test.ts"
+    "test": "node --test --experimental-strip-types auth.test.ts ax.test.ts cdp-policy.test.ts event-buffer.test.ts output.test.ts server.test.ts tab-ready.test.js"
   },
   "dependencies": {
     "ws": "^8.21.1"
