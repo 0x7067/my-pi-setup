@@ -166,7 +166,6 @@ const ALLOWED_COMMANDS = new Set([
   "Overlay.setShowScrollSnapOverlays",
   "Overlay.setShowViewSizeOnResize",
   "Page.addScriptToEvaluateOnNewDocument",
-  "Page.bringToFront",
   "Page.captureScreenshot",
   "Page.createIsolatedWorld",
   "Page.disable",

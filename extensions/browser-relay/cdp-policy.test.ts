@@ -70,6 +70,7 @@ test("blocks browser-wide DevTools capabilities", () => {
     "Storage.getCookies",
     "Tracing.start",
     "Tracing.requestMemoryDump",
+    "Page.bringToFront",
     "Page.crash",
     "Page.deleteCookie",
     "Page.navigate",
