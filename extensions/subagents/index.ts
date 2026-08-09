@@ -40,7 +40,11 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Markdown, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { deriveBtwTitle, isModelVisible } from "./src/by-the-way.ts";
+import {
+  buildBtwContextPreamble,
+  deriveBtwTitle,
+  isModelVisible,
+} from "./src/by-the-way.ts";
 import {
   BACKEND_NAMES,
   formatElapsed,
@@ -682,6 +686,7 @@ export default function (pi: ExtensionAPI) {
     }
 
     const manager = await getManager();
+    const contextPreamble = buildBtwContextPreamble(ctx.sessionManager);
     let snap: SubagentSnapshot;
     try {
       snap = await runTool(
@@ -689,6 +694,7 @@ export default function (pi: ExtensionAPI) {
         manager.spawn("pi", {
           origin: "btw",
           prompt,
+          contextPreamble,
           title: deriveBtwTitle(prompt),
           cwd: ctx.cwd,
           parent: {

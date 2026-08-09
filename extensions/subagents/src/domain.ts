@@ -50,6 +50,13 @@ export interface SpawnTask {
   /** Omitted for normal tool-driven spawns. */
   readonly origin?: SubagentOrigin;
   readonly prompt: string;
+  /**
+   * Optional parent-session context, prepended to the first run only.
+   * Used by /btw asides so they can answer questions about what the main
+   * agent is doing ("is X stuck?") without inherited conversation state.
+   * Backends that don't support preamble injection may ignore it.
+   */
+  readonly contextPreamble?: string;
   readonly title: string;
   readonly cwd: string;
   /**

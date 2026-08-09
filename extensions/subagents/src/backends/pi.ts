@@ -520,7 +520,12 @@ const makePiSession = (
     ).pipe(Effect.ignore);
 
     emit({ _tag: "MetaChanged", meta: currentMeta() });
-    startRun(task.prompt);
+    // /btw asides carry a compact parent-session preamble so they can answer
+    // questions about the main agent's current work without inherited context.
+    const initialPrompt = task.contextPreamble
+      ? `${task.contextPreamble}\n\n${task.prompt}`
+      : task.prompt;
+    startRun(initialPrompt);
 
     return {
       meta: Effect.sync(currentMeta),
