@@ -24,10 +24,6 @@ function isAttachable(url) {
   return /^(https?|file):/.test(url ?? "");
 }
 
-function isAttachableTab(tab) {
-  return isAttachable(tab.url) || isAttachable(tab.pendingUrl);
-}
-
 async function options() {
   return await chrome.storage.local.get({ port: DEFAULT_PORT, token: "" });
 }
@@ -87,7 +83,7 @@ async function requireAllowedTab(tabId) {
     );
   }
   const tab = await chrome.tabs.get(tabId);
-  if (!isAttachableTab(tab)) {
+  if (!isAttachable(tab.url)) {
     throw new Error(`Tab ${tabId} is not attachable`);
   }
   return tab;
@@ -103,7 +99,7 @@ async function execute(command) {
           (tab) =>
             Number.isInteger(tab.id) &&
             allowedTabs.has(tab.id) &&
-            isAttachableTab(tab),
+            isAttachable(tab.url),
         )
         .map((tab) => ({
           id: tab.id,
@@ -127,7 +123,9 @@ async function execute(command) {
     try {
       tab = await waitForCommittedTab(chrome.tabs, created.id, isAttachable);
     } catch (error) {
-      await chrome.tabs.remove(created.id);
+      try {
+        await chrome.tabs.remove(created.id);
+      } catch {}
       throw error;
     }
     allowedTabs.add(created.id);
