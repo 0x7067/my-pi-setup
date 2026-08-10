@@ -5,72 +5,72 @@
 // caller catches that and skips only this adapter instead of blocking Calm.
 
 import {
-  AssistantMessageComponent,
-  type ExtensionAPI,
+	AssistantMessageComponent,
+	type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import { calmPresentationHides } from "./calm-visibility.js";
 
 type AssistantMessage = Parameters<
-  AssistantMessageComponent["updateContent"]
+	AssistantMessageComponent["updateContent"]
 >[0];
 
 type AssistantMessagePresentationState = {
-  hiddenThinkingLabel: string;
-  hideThinkingBlock: boolean;
-  lastMessage?: AssistantMessage;
+	hiddenThinkingLabel: string;
+	hideThinkingBlock: boolean;
+	lastMessage?: AssistantMessage;
 };
 
 type CalmAssistantLayoutPatch = {
-  hidesThinking: () => boolean;
+	hidesThinking: () => boolean;
 };
 
 // Stable symbol so a compatible upgrade cannot double-patch a live process.
 const CALM_ASSISTANT_LAYOUT_PATCH = Symbol.for("calm:assistant-layout:v1");
 
 export function installCalmAssistantLayout(_pi: ExtensionAPI): void {
-  const registry = globalThis as typeof globalThis & {
-    [key: symbol]: CalmAssistantLayoutPatch | undefined;
-  };
+	const registry = globalThis as typeof globalThis & {
+		[key: symbol]: CalmAssistantLayoutPatch | undefined;
+	};
 
-  const hidesThinking = (): boolean =>
-    calmPresentationHides("assistant-thinking");
+	const hidesThinking = (): boolean =>
+		calmPresentationHides("assistant-thinking");
 
-  const installed = registry[CALM_ASSISTANT_LAYOUT_PATCH];
-  if (installed) {
-    installed.hidesThinking = hidesThinking;
-    return;
-  }
+	const installed = registry[CALM_ASSISTANT_LAYOUT_PATCH];
+	if (installed) {
+		installed.hidesThinking = hidesThinking;
+		return;
+	}
 
-  const patch: CalmAssistantLayoutPatch = { hidesThinking };
+	const patch: CalmAssistantLayoutPatch = { hidesThinking };
 
-  if (typeof AssistantMessageComponent !== "function") {
-    throw new Error("Calm requires Pi AssistantMessageComponent");
-  }
-  const originalUpdateContent =
-    AssistantMessageComponent.prototype.updateContent;
-  if (typeof originalUpdateContent !== "function") {
-    throw new Error("Calm requires Pi AssistantMessageComponent.updateContent");
-  }
+	if (typeof AssistantMessageComponent !== "function") {
+		throw new Error("Calm requires Pi AssistantMessageComponent");
+	}
+	const originalUpdateContent =
+		AssistantMessageComponent.prototype.updateContent;
+	if (typeof originalUpdateContent !== "function") {
+		throw new Error("Calm requires Pi AssistantMessageComponent.updateContent");
+	}
 
-  AssistantMessageComponent.prototype.updateContent = function (
-    message: AssistantMessage,
-  ): void {
-    const state = this as unknown as AssistantMessagePresentationState;
-    const hideThinking =
-      state.hiddenThinkingLabel === "" &&
-      state.hideThinkingBlock &&
-      patch.hidesThinking();
+	AssistantMessageComponent.prototype.updateContent = function (
+		message: AssistantMessage,
+	): void {
+		const state = this as unknown as AssistantMessagePresentationState;
+		const hideThinking =
+			state.hiddenThinkingLabel === "" &&
+			state.hideThinkingBlock &&
+			patch.hidesThinking();
 
-    const presentationMessage = hideThinking
-      ? {
-          ...message,
-          content: message.content.filter((block) => block.type !== "thinking"),
-        }
-      : message;
+		const presentationMessage = hideThinking
+			? {
+					...message,
+					content: message.content.filter((block) => block.type !== "thinking"),
+				}
+			: message;
 
-    originalUpdateContent.call(this, presentationMessage);
-    if (presentationMessage !== message) state.lastMessage = message;
-  };
+		originalUpdateContent.call(this, presentationMessage);
+		if (presentationMessage !== message) state.lastMessage = message;
+	};
 
-  registry[CALM_ASSISTANT_LAYOUT_PATCH] = patch;
+	registry[CALM_ASSISTANT_LAYOUT_PATCH] = patch;
 }

@@ -21,7 +21,9 @@
   "compaction": {
     "enabled": true
   },
-  "extensions": ["-extensions/firecrawl-search/index.ts"],
+  "extensions": [
+    "-extensions/firecrawl-search/index.ts"
+  ],
   "quietStartup": true,
   "tuiMode": "fullscreen"
 }
