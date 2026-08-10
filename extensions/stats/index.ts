@@ -100,6 +100,7 @@ export default function statsExtension(pi: ExtensionAPI) {
             text: `${formatSummary(stats)}\n\n${JSON.stringify(
               {
                 byModel: stats.byModel,
+                byProviderModel: stats.byProviderModel,
                 byProvider: stats.byProvider,
                 byProject: stats.byProject,
                 byDay: stats.byDay,

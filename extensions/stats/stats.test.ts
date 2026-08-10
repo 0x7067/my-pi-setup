@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { collectStats } from "./src/stats.ts";
+import { collectStats, formatSummary } from "./src/stats.ts";
 
 test("attributes forked usage to its origin and tolerates malformed timestamps", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "pi-stats-test-"));
@@ -91,4 +91,113 @@ test("attributes forked usage to its origin and tolerates malformed timestamps",
     false,
   );
   assert.equal(stats.byDay.find((item) => item.key === "unknown")?.requests, 1);
+  assert.equal(stats.cacheWriteStatus, "not-reported");
+  assert.match(formatSummary(stats), /Cache writes not reported/);
+  const providerModel = stats.byProviderModel[0];
+  assert.equal(providerModel?.key, "openai-codex/gpt-test");
+  assert.equal(providerModel?.meteredRequests, 4);
+  assert.equal(providerModel?.cacheHits, 4);
+  assert.equal(providerModel?.coldStartMisses, 0);
+  assert.equal(providerModel?.midSessionMisses, 0);
+  assert.equal(providerModel?.recentRequests, 3);
+  assert.equal(providerModel?.recentCacheMisses, 0);
+  assert.equal(providerModel?.cacheWriteStatus, "not-reported");
+});
+
+test("separates cold and mid-session misses without inventing cache writes", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "pi-stats-cache-test-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+
+  const message = (
+    id: string,
+    timestamp: string,
+    usage: { input: number; cacheRead: number; cacheWrite?: number },
+    provider = "openai-codex",
+    model = "gpt-test",
+  ) =>
+    JSON.stringify({
+      type: "message",
+      id,
+      timestamp,
+      message: {
+        role: "assistant",
+        provider,
+        model,
+        stopReason: "stop",
+        usage: {
+          input: usage.input,
+          output: 1,
+          cacheRead: usage.cacheRead,
+          cacheWrite: usage.cacheWrite ?? 0,
+          totalTokens:
+            usage.input + usage.cacheRead + (usage.cacheWrite ?? 0) + 1,
+          cost: { total: 0 },
+        },
+      },
+    });
+
+  await writeFile(
+    join(root, "session-a.jsonl"),
+    [
+      JSON.stringify({
+        type: "session",
+        timestamp: "2026-08-08T09:00:00.000Z",
+        cwd: "/work/a",
+      }),
+      message("a1", "2026-08-08T09:00:01.000Z", {
+        input: 100,
+        cacheRead: 0,
+      }),
+      message("a2", "2026-08-08T09:00:02.000Z", {
+        input: 20,
+        cacheRead: 80,
+      }),
+      message("a3", "2026-08-08T09:00:03.000Z", {
+        input: 50,
+        cacheRead: 0,
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  await writeFile(
+    join(root, "session-b.jsonl"),
+    [
+      JSON.stringify({
+        type: "session",
+        timestamp: "2026-08-08T10:00:00.000Z",
+        cwd: "/work/b",
+      }),
+      message("b1", "2026-08-08T10:00:01.000Z", {
+        input: 10,
+        cacheRead: 90,
+      }),
+      message(
+        "b2",
+        "2026-08-08T10:00:02.000Z",
+        { input: 10, cacheRead: 0, cacheWrite: 100 },
+        "anthropic",
+        "claude-test",
+      ),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+
+  const stats = await collectStats(root);
+  const openai = stats.byProviderModel.find(
+    (item) => item.key === "openai-codex/gpt-test",
+  );
+  assert.equal(openai?.meteredRequests, 4);
+  assert.equal(openai?.cacheHits, 2);
+  assert.equal(openai?.coldStartMisses, 1);
+  assert.equal(openai?.midSessionMisses, 1);
+  assert.equal(openai?.recentCacheMisses, 2);
+  assert.equal(openai?.recentCacheReuse, 170 / 350);
+  assert.equal(openai?.cacheWriteStatus, "not-reported");
+
+  const anthropic = stats.byProviderModel.find(
+    (item) => item.key === "anthropic/claude-test",
+  );
+  assert.equal(anthropic?.cacheWrite, 100);
+  assert.equal(anthropic?.cacheWriteStatus, "reported");
+  assert.equal(stats.cacheWriteStatus, "reported");
 });

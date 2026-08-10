@@ -106,11 +106,11 @@ export function dashboardHtml() {
       <div class="metric"><span class="metric-label">Requests</span><strong class="metric-value" id="requests">—</strong><span class="metric-note" id="sessions">— session files</span></div>
       <div class="metric"><span class="metric-label">Cost</span><strong class="metric-value" id="cost">—</strong><span class="metric-note">Recorded provider cost</span></div>
       <div class="metric"><span class="metric-label">Tokens</span><strong class="metric-value" id="tokens">—</strong><span class="metric-note" id="token-note">— output</span></div>
-      <div class="metric"><span class="metric-label">Cache reuse</span><strong class="metric-value" id="cache">—</strong><span class="metric-note">Read ÷ reusable input</span></div>
+      <div class="metric"><span class="metric-label">Cache reuse</span><strong class="metric-value" id="cache">—</strong><span class="metric-note" id="cache-note">Read ÷ reusable input</span></div>
       <div class="metric"><span class="metric-label">Errors</span><strong class="metric-value" id="errors">—</strong><span class="metric-note" id="malformed">— malformed lines</span></div>
     </section>
     <section class="activity"><div class="section-head"><h2>Daily cost</h2><span class="section-note">All recorded days</span></div><div class="bars" id="bars"></div></section>
-    <section class="grid"><div class="table-panel"><div class="section-head"><h2>Models</h2><span class="section-note">Ranked by cost</span></div><div class="table-scroll" id="models"></div></div><div class="table-panel"><div class="section-head"><h2>Projects</h2><span class="section-note">Local folder names only</span></div><div class="table-scroll" id="projects"></div></div></section>
+    <section class="grid"><div class="table-panel"><div class="section-head"><h2>Provider models</h2><span class="section-note">Recent = latest 20 metered requests</span></div><div class="table-scroll" id="models"></div></div><div class="table-panel"><div class="section-head"><h2>Projects</h2><span class="section-note">Local folder names only</span></div><div class="table-scroll" id="projects"></div></div></section>
     <footer><span>Read-only · loopback-only · refreshes every 30 seconds</span><span id="provider-count"></span></footer>
   </main>
   <script>
@@ -122,6 +122,21 @@ export function dashboardHtml() {
     function table(rows) {
       if (!rows.length) return '<div class="empty">No usage recorded.</div>';
       return '<table><thead><tr><th>Name</th><th>Requests</th><th>Tokens</th><th>Cost</th></tr></thead><tbody>' + rows.map(row => '<tr><td title="' + esc(row.key) + '">' + esc(row.key) + '</td><td>' + number.format(row.requests) + '</td><td>' + number.format(row.totalTokens) + '</td><td>' + money.format(row.cost) + '</td></tr>').join('') + '</tbody></table>';
+    }
+    function cacheWrite(row) {
+      if (row.cacheWriteStatus === 'reported') return number.format(row.cacheWrite);
+      if (row.cacheWriteStatus === 'not-reported') return 'Not reported';
+      if (row.cacheWriteStatus === 'none-recorded') return 'None recorded';
+      return '—';
+    }
+    function modelTable(rows) {
+      if (!rows.length) return '<div class="empty">No usage recorded.</div>';
+      return '<table><thead><tr><th>Name</th><th>Requests</th><th>Reuse</th><th>Recent</th><th>Recent misses</th><th>Cold misses</th><th>Mid-session misses</th><th>Writes</th><th>Cost</th></tr></thead><tbody>' + rows.map(row => {
+        const reusable = row.input + row.cacheRead;
+        const reuse = reusable ? percent(row.cacheRead / reusable) : '—';
+        const recent = row.recentCacheReuse === null ? '—' : percent(row.recentCacheReuse);
+        return '<tr><td title="' + esc(row.key) + '">' + esc(row.key) + '</td><td>' + number.format(row.requests) + '</td><td>' + reuse + '</td><td>' + recent + '</td><td>' + number.format(row.recentCacheMisses) + '</td><td>' + number.format(row.coldStartMisses) + '</td><td>' + number.format(row.midSessionMisses) + '</td><td>' + cacheWrite(row) + '</td><td>' + money.format(row.cost) + '</td></tr>';
+      }).join('') + '</tbody></table>';
     }
     async function load() {
       const response = await fetch('/api/stats?token=' + encodeURIComponent(token), { cache: 'no-store' });
@@ -135,11 +150,12 @@ export function dashboardHtml() {
       document.querySelector('#tokens').textContent = number.format(t.totalTokens);
       document.querySelector('#token-note').textContent = number.format(t.output) + ' output · ' + number.format(t.reasoning) + ' reasoning';
       document.querySelector('#cache').textContent = percent(reusable ? t.cacheRead / reusable : 0);
+      document.querySelector('#cache-note').textContent = 'Read ÷ reusable input · ' + (stats.cacheWriteStatus === 'reported' ? number.format(t.cacheWrite) + ' write tokens' : stats.cacheWriteStatus === 'not-reported' ? 'writes not reported' : stats.cacheWriteStatus === 'none-recorded' ? 'no cache activity' : 'usage unmetered');
       document.querySelector('#errors').textContent = percent(t.requests ? t.errors / t.requests : 0);
       document.querySelector('#errors').className = 'metric-value ' + (t.errors ? 'critical' : '');
       document.querySelector('#malformed').textContent = stats.malformedLines + ' malformed lines skipped';
       document.querySelector('#malformed').className = 'metric-note ' + (stats.malformedLines ? 'warning' : '');
-      document.querySelector('#models').innerHTML = table(stats.byModel);
+      document.querySelector('#models').innerHTML = modelTable(stats.byProviderModel);
       document.querySelector('#projects').innerHTML = table(stats.byProject);
       const max = Math.max(0.000001, ...stats.byDay.map(day => day.cost));
       document.querySelector('#bars').innerHTML = stats.byDay.map(day => '<div class="bar-wrap"><div class="bar" style="height:' + Math.max(2, day.cost / max * 100) + '%"></div><span>' + esc(day.key) + ' · ' + money.format(day.cost) + '</span></div>').join('') || '<div class="empty">No dated usage recorded.</div>';
