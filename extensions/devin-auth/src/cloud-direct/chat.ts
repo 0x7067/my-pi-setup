@@ -663,8 +663,8 @@ function* decodeChatFrame(proto: Buffer): Generator<CloudChatEvent> {
  *     ]
  *   }
  *
- * We extract the standard input/output counts and synthesize a `total`.
- * Anything else (cached, reasoning_tokens, …) is dropped for v1.
+ * We extract input, output, cache-read, cache-creation, and reasoning counts,
+ * and synthesize a `total` from input plus output.
  */
 function decodeUsageBlock(buf: Buffer): CloudChatEvent | null {
   let promptTokens: number | undefined;

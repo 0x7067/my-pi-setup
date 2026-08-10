@@ -23,13 +23,13 @@ export type SubagentOrigin = "model" | "btw";
  * budgets. Omitted = backend default (pi inherits the parent level).
  */
 export const REASONING_EFFORTS = [
-	"off",
-	"minimal",
-	"low",
-	"medium",
-	"high",
-	"xhigh",
-	"max",
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
 ] as const;
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
@@ -37,105 +37,105 @@ export type SubagentStatus = "running" | "done" | "error";
 
 /** Parent-session context resolved by the tool layer and passed opaquely. */
 export interface ParentContext {
-	readonly parentCwd: string;
-	readonly projectTrusted: boolean;
-	/** Parent pi model, for the pi backend's "inherit" default. */
-	readonly inheritedModel?: { readonly provider: string; readonly id: string };
-	readonly inheritedThinkingLevel?: string;
-	/** Parent model registry; required by the pi backend to resolve models. */
-	readonly modelRegistry?: ModelRegistry;
+  readonly parentCwd: string;
+  readonly projectTrusted: boolean;
+  /** Parent pi model, for the pi backend's "inherit" default. */
+  readonly inheritedModel?: { readonly provider: string; readonly id: string };
+  readonly inheritedThinkingLevel?: string;
+  /** Parent model registry; required by the pi backend to resolve models. */
+  readonly modelRegistry?: ModelRegistry;
 }
 
 export interface SpawnTask {
-	/** Omitted for normal tool-driven spawns. */
-	readonly origin?: SubagentOrigin;
-	readonly prompt: string;
-	/**
-	 * Optional parent-session context, prepended to the first run only.
-	 * Used by /btw asides so they can answer questions about what the main
-	 * agent is doing ("is X stuck?") without inherited conversation state.
-	 * Backends that don't support preamble injection may ignore it.
-	 */
-	readonly contextPreamble?: string;
-	readonly title: string;
-	readonly cwd: string;
-	/**
-	 * Generic model hint, interpreted per backend:
-	 * pi: "provider/model-id" or bare model id; claude: model alias;
-	 * codex: model slug. Omitted = backend default / inherit.
-	 */
-	readonly model?: string;
-	/** Shared effort scale; each backend maps it to its native equivalent. */
-	readonly reasoningEffort?: ReasoningEffort;
-	readonly parent: ParentContext;
+  /** Omitted for normal tool-driven spawns. */
+  readonly origin?: SubagentOrigin;
+  readonly prompt: string;
+  /**
+   * Optional parent-session context, prepended to the first run only.
+   * Used by /btw asides so they can answer questions about what the main
+   * agent is doing ("is X stuck?") without inherited conversation state.
+   * Backends that don't support preamble injection may ignore it.
+   */
+  readonly contextPreamble?: string;
+  readonly title: string;
+  readonly cwd: string;
+  /**
+   * Generic model hint, interpreted per backend:
+   * pi: "provider/model-id" or bare model id; claude: model alias;
+   * codex: model slug. Omitted = backend default / inherit.
+   */
+  readonly model?: string;
+  /** Shared effort scale; each backend maps it to its native equivalent. */
+  readonly reasoningEffort?: ReasoningEffort;
+  readonly parent: ParentContext;
 }
 
 export interface SubagentMeta {
-	readonly backend: BackendName;
-	/** Display label, e.g. "anthropic/claude-opus-4-5" or "gpt-5-codex". */
-	readonly modelLabel?: string;
-	/** Context window capacity for utilization display, when known. */
-	readonly contextWindow?: number;
-	/** pi session file / Claude projects JSONL / Codex rollout path. */
-	readonly sessionFilePath?: string;
-	/** Claude session id / Codex conversation id. */
-	readonly nativeSessionId?: string;
+  readonly backend: BackendName;
+  /** Display label, e.g. "anthropic/claude-opus-4-5" or "gpt-5-codex". */
+  readonly modelLabel?: string;
+  /** Context window capacity for utilization display, when known. */
+  readonly contextWindow?: number;
+  /** pi session file / Claude projects JSONL / Codex rollout path. */
+  readonly sessionFilePath?: string;
+  /** Claude session id / Codex conversation id. */
+  readonly nativeSessionId?: string;
 }
 
 // --- Transcript ------------------------------------------------------------
 
 export type TranscriptPart =
-	| { readonly type: "text"; readonly text: string }
-	| {
-			readonly type: "thinking";
-			readonly text: string;
-			readonly redacted?: boolean;
-	  }
-	| {
-			readonly type: "toolCall";
-			readonly toolId: string;
-			readonly name: string;
-			readonly argsPreview?: string;
-	  };
+  | { readonly type: "text"; readonly text: string }
+  | {
+      readonly type: "thinking";
+      readonly text: string;
+      readonly redacted?: boolean;
+    }
+  | {
+      readonly type: "toolCall";
+      readonly toolId: string;
+      readonly name: string;
+      readonly argsPreview?: string;
+    };
 
 export type TranscriptItem =
-	| { readonly kind: "user"; readonly text: string }
-	| {
-			readonly kind: "assistant";
-			readonly parts: ReadonlyArray<TranscriptPart>;
-	  }
-	| {
-			readonly kind: "toolResult";
-			readonly toolId: string;
-			readonly name: string;
-			readonly isError: boolean;
-			readonly outputPreview?: string;
-	  };
+  | { readonly kind: "user"; readonly text: string }
+  | {
+      readonly kind: "assistant";
+      readonly parts: ReadonlyArray<TranscriptPart>;
+    }
+  | {
+      readonly kind: "toolResult";
+      readonly toolId: string;
+      readonly name: string;
+      readonly isError: boolean;
+      readonly outputPreview?: string;
+    };
 
 export interface LiveToolState {
-	readonly toolId: string;
-	readonly name: string;
-	readonly argsPreview?: string;
-	readonly outputPreview?: string;
-	readonly done?: boolean;
-	readonly isError?: boolean;
+  readonly toolId: string;
+  readonly name: string;
+  readonly argsPreview?: string;
+  readonly outputPreview?: string;
+  readonly done?: boolean;
+  readonly isError?: boolean;
 }
 
 export interface QueuedMessage {
-	readonly text: string;
-	readonly kind: "steer" | "follow-up";
+  readonly text: string;
+  readonly kind: "steer" | "follow-up";
 }
 
 // --- Events ------------------------------------------------------------------
 
 export type RunOutcome =
-	| { readonly _tag: "Completed"; readonly finalText: string }
-	| {
-			readonly _tag: "Failed";
-			readonly errorText: string;
-			readonly partialText?: string;
-	  }
-	| { readonly _tag: "Interrupted"; readonly partialText?: string };
+  | { readonly _tag: "Completed"; readonly finalText: string }
+  | {
+      readonly _tag: "Failed";
+      readonly errorText: string;
+      readonly partialText?: string;
+    }
+  | { readonly _tag: "Interrupted"; readonly partialText?: string };
 
 /**
  * Normalized activity stream. Previews (`argsPreview`, `outputPreview`) are
@@ -144,51 +144,51 @@ export type RunOutcome =
  * of the interface.
  */
 export type SubagentEvent =
-	// lifecycle (a session can run multiple turns via send())
-	| { readonly _tag: "RunStarted" }
-	| { readonly _tag: "RunSettled"; readonly outcome: RunOutcome }
-	// transcript building blocks
-	| { readonly _tag: "UserMessage"; readonly text: string }
-	| {
-			readonly _tag: "AssistantDelta";
-			readonly kind: "text" | "thinking";
-			readonly delta: string;
-	  }
-	| {
-			readonly _tag: "AssistantMessage";
-			readonly parts: ReadonlyArray<TranscriptPart>;
-	  }
-	| {
-			readonly _tag: "ToolStart";
-			readonly toolId: string;
-			readonly name: string;
-			readonly argsPreview?: string;
-	  }
-	| {
-			readonly _tag: "ToolUpdate";
-			readonly toolId: string;
-			readonly outputPreview?: string;
-	  }
-	| {
-			readonly _tag: "ToolEnd";
-			readonly toolId: string;
-			readonly name: string;
-			readonly isError: boolean;
-			readonly outputPreview?: string;
-	  }
-	// bookkeeping
-	| {
-			readonly _tag: "QueueChanged";
-			readonly queued: ReadonlyArray<QueuedMessage>;
-	  }
-	| {
-			readonly _tag: "UsageChanged";
-			readonly tokens?: number;
-			readonly contextWindow?: number;
-	  }
-	| { readonly _tag: "MetaChanged"; readonly meta: Partial<SubagentMeta> }
-	/** Non-fatal diagnostics. Fatal failures arrive as a RunSettled outcome. */
-	| { readonly _tag: "BackendError"; readonly message: string };
+  // lifecycle (a session can run multiple turns via send())
+  | { readonly _tag: "RunStarted" }
+  | { readonly _tag: "RunSettled"; readonly outcome: RunOutcome }
+  // transcript building blocks
+  | { readonly _tag: "UserMessage"; readonly text: string }
+  | {
+      readonly _tag: "AssistantDelta";
+      readonly kind: "text" | "thinking";
+      readonly delta: string;
+    }
+  | {
+      readonly _tag: "AssistantMessage";
+      readonly parts: ReadonlyArray<TranscriptPart>;
+    }
+  | {
+      readonly _tag: "ToolStart";
+      readonly toolId: string;
+      readonly name: string;
+      readonly argsPreview?: string;
+    }
+  | {
+      readonly _tag: "ToolUpdate";
+      readonly toolId: string;
+      readonly outputPreview?: string;
+    }
+  | {
+      readonly _tag: "ToolEnd";
+      readonly toolId: string;
+      readonly name: string;
+      readonly isError: boolean;
+      readonly outputPreview?: string;
+    }
+  // bookkeeping
+  | {
+      readonly _tag: "QueueChanged";
+      readonly queued: ReadonlyArray<QueuedMessage>;
+    }
+  | {
+      readonly _tag: "UsageChanged";
+      readonly tokens?: number;
+      readonly contextWindow?: number;
+    }
+  | { readonly _tag: "MetaChanged"; readonly meta: Partial<SubagentMeta> }
+  /** Non-fatal diagnostics. Fatal failures arrive as a RunSettled outcome. */
+  | { readonly _tag: "BackendError"; readonly message: string };
 
 // --- Snapshot ---------------------------------------------------------------
 
@@ -197,64 +197,64 @@ export type SubagentEvent =
  * everything the tools, footer status, and both TUI views read.
  */
 export interface SubagentSnapshot {
-	readonly id: string;
-	readonly origin: SubagentOrigin;
-	readonly backend: BackendName;
-	readonly title: string;
-	readonly prompt: string;
-	readonly cwd: string;
-	readonly status: SubagentStatus;
-	readonly createdAt: number;
-	readonly settledAt?: number;
-	readonly errorText?: string;
-	readonly meta: SubagentMeta;
-	readonly usage: { readonly tokens?: number; readonly contextWindow?: number };
-	readonly transcript: ReadonlyArray<TranscriptItem>;
-	/** Streaming assistant buffers, cleared when the finalized message lands. */
-	readonly liveAssistant?: { readonly text: string; readonly thinking: string };
-	readonly liveTools: ReadonlyArray<LiveToolState>;
-	readonly queued: ReadonlyArray<QueuedMessage>;
-	/** Final text of the most recent completed run (v1 `finalOutput`). */
-	readonly finalText: string;
-	/** Count of finalized assistant messages (for subagent_check). */
-	readonly turns: number;
+  readonly id: string;
+  readonly origin: SubagentOrigin;
+  readonly backend: BackendName;
+  readonly title: string;
+  readonly prompt: string;
+  readonly cwd: string;
+  readonly status: SubagentStatus;
+  readonly createdAt: number;
+  readonly settledAt?: number;
+  readonly errorText?: string;
+  readonly meta: SubagentMeta;
+  readonly usage: { readonly tokens?: number; readonly contextWindow?: number };
+  readonly transcript: ReadonlyArray<TranscriptItem>;
+  /** Streaming assistant buffers, cleared when the finalized message lands. */
+  readonly liveAssistant?: { readonly text: string; readonly thinking: string };
+  readonly liveTools: ReadonlyArray<LiveToolState>;
+  readonly queued: ReadonlyArray<QueuedMessage>;
+  /** Final text of the most recent completed run (v1 `finalOutput`). */
+  readonly finalText: string;
+  /** Count of finalized assistant messages (for subagent_check). */
+  readonly turns: number;
 }
 
 /** Final text, or the live streaming buffer while a run is active (v1 `latestOutput`). */
 export function latestText(snap: SubagentSnapshot) {
-	const live = snap.liveAssistant?.text.trim();
-	if (live) return live;
-	return snap.finalText;
+  const live = snap.liveAssistant?.text.trim();
+  if (live) return live;
+  return snap.finalText;
 }
 
 export function formatElapsed(snap: SubagentSnapshot) {
-	const end = snap.settledAt ?? Date.now();
-	const totalSeconds = Math.max(0, Math.round((end - snap.createdAt) / 1000));
-	const minutes = Math.floor(totalSeconds / 60);
-	const seconds = totalSeconds % 60;
-	return minutes > 0
-		? `${minutes}m${seconds.toString().padStart(2, "0")}s`
-		: `${seconds}s`;
+  const end = snap.settledAt ?? Date.now();
+  const totalSeconds = Math.max(0, Math.round((end - snap.createdAt) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0
+    ? `${minutes}m${seconds.toString().padStart(2, "0")}s`
+    : `${seconds}s`;
 }
 
 // --- Errors -------------------------------------------------------------------
 
 export class SpawnError extends Data.TaggedError("SpawnError")<{
-	readonly message: string;
+  readonly message: string;
 }> {}
 
 export class BackendUnavailableError extends Data.TaggedError(
-	"BackendUnavailableError",
+  "BackendUnavailableError",
 )<{
-	readonly message: string;
+  readonly message: string;
 }> {}
 
 export class ConcurrencyLimitError extends Data.TaggedError(
-	"ConcurrencyLimitError",
+  "ConcurrencyLimitError",
 )<{
-	readonly message: string;
+  readonly message: string;
 }> {}
 
 export class SendError extends Data.TaggedError("SendError")<{
-	readonly message: string;
+  readonly message: string;
 }> {}

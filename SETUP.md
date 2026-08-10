@@ -28,12 +28,8 @@ Remote OpenAI compaction is vendored under
 filters null provider-header values introduced by Pi 0.84 before making remote
 requests. Update the vendored source and its recorded upstream commit together.
 
-The Devin provider is vendored under `extensions/devin-auth` from the
-`pi-devin-auth@0.1.2` npm tarball. Its local patch derives Cognition session and
-cascade IDs from Pi's conversation ID, preventing cache identity from leaking
-between conversations and keeping it stable across restarts. It also sets
-Cognition's code-telemetry consent field to false. `/stats summary` measures
-aggregate reuse, and `showCacheMissNotices` reports individual misses.
+The vendored Devin provider and its local cache-identity and privacy patches are
+documented in [`extensions/devin-auth/README.md`](extensions/devin-auth/README.md).
 
 ## Firecrawl
 
