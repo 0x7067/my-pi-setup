@@ -1,0 +1,25 @@
+{
+  "name": "pi-devin-auth-local",
+  "version": "0.1.2-pi.1",
+  "private": true,
+  "type": "module",
+  "description": "Vendored pi-devin-auth with conversation-scoped cache identity",
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "tsc --noEmit -p .",
+    "test": "node --test --experimental-strip-types session-ids.test.ts"
+  },
+  "devDependencies": {
+    "@effect/tsgo": "^0.24.2",
+    "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "0.84.1",
+    "@earendil-works/pi-coding-agent": "0.84.1"
+  }
+}

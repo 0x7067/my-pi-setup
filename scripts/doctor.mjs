@@ -209,6 +209,22 @@ if (
   );
 }
 
+const devinPackage = await readJson(
+  join(agentDir, "extensions/devin-auth/package.json"),
+).catch(() => undefined);
+const devinEntrypoint = await lstat(
+  join(agentDir, "extensions/devin-auth/index.ts"),
+).catch(() => undefined);
+if (
+  devinPackage?.name !== "pi-devin-auth-local" ||
+  devinPackage?.version !== "0.1.2-pi.1" ||
+  !devinEntrypoint?.isFile()
+) {
+  failures.push(
+    "vendored pi-devin-auth@0.1.2-pi.1 with its local entrypoint is unavailable",
+  );
+}
+
 for (const warning of warnings) console.warn(`WARN: ${warning}`);
 for (const failure of failures) console.error(`FAIL: ${failure}`);
 

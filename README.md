@@ -14,6 +14,7 @@ This setup is intentionally opinionated. It:
 - adds a private local dashboard for Pi usage, cost, models, projects, and cache reuse
 - adds Pi Lens, Hermes memory, run summaries, and Calm mode
 - vendors Codex-style OpenAI compaction with a Pi 0.84 compatibility patch
+- vendors the Devin provider with conversation-scoped prompt-cache identity
 
 Project-local extensions prompt for trust by default. Claude and Codex
 subagents are autonomous processes with normal host permissions, so only launch

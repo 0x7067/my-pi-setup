@@ -15,7 +15,6 @@
     "../../.hound/pi-extension",
     "npm:@aliou/pi-synthetic@0.24.3",
     "npm:@vigolium/piolium",
-    "npm:pi-devin-auth",
     "npm:@ff-labs/pi-fff"
   ],
   "treeFilterMode": "default",
