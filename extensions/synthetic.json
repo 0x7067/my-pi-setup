@@ -1,6 +1,6 @@
 {
   "configVersion": "0.24.3",
-  "webSearch": true,
+  "webSearch": false,
   "quotasCommand": true,
   "usageStatus": false,
   "quotaWarnings": false,

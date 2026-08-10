@@ -1,23 +1,30 @@
 {
   "lastChangelogVersion": "0.84.1",
-  "theme": "rose-pine-moon",
-  "defaultProvider": "kimi-coding",
-  "defaultModel": "k3-256k",
+  "theme": "deep-space",
+  "defaultProvider": "devin",
+  "defaultModel": "swe-1-7",
   "defaultThinkingLevel": "high",
   "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
+  "showCacheMissNotices": true,
   "steeringMode": "all",
   "followUpMode": "all",
   "packages": [
     "npm:pi-lens@3.8.74",
     "npm:pi-hermes-memory@0.9.2",
     "../../.hound/pi-extension",
-    "npm:@aliou/pi-synthetic@0.24.3"
+    "npm:@aliou/pi-synthetic@0.24.3",
+    "npm:@vigolium/piolium",
+    "npm:pi-devin-auth",
+    "npm:@ff-labs/pi-fff"
   ],
   "treeFilterMode": "default",
   "compaction": {
     "enabled": true
   },
-  "extensions": ["-extensions/firecrawl-search/index.ts"],
-  "quietStartup": true
+  "extensions": [
+    "-extensions/firecrawl-search/index.ts"
+  ],
+  "quietStartup": true,
+  "tuiMode": "fullscreen"
 }

@@ -34,13 +34,28 @@ interface DashboardTui extends RenderableNode {
 
 const RESET = "\x1b[0m";
 const BOLD = "\x1b[1m";
+// Deep Space accent, the same warm tan the theme uses for anything you can
+// act on. Keep in step with `accent` in ~/.config/deep-space/palette.toml.
+const ACCENT: Rgb = [216, 167, 102];
+const HIGHLIGHT: Rgb = [232, 192, 146];
+
+function shade(amount: number): Rgb {
+  return [
+    Math.round(ACCENT[0] * amount),
+    Math.round(ACCENT[1] * amount),
+    Math.round(ACCENT[2] * amount),
+  ];
+}
+
+// Climbs from dark bronze to the highlight and falls back, so the gradient
+// loops without a seam.
 const PALETTE: Rgb[] = [
-  [22, 83, 189],
-  [48, 129, 247],
-  [93, 171, 255],
-  [151, 205, 255],
-  [93, 171, 255],
-  [48, 129, 247],
+  shade(0.64),
+  shade(0.83),
+  ACCENT,
+  HIGHLIGHT,
+  ACCENT,
+  shade(0.83),
 ];
 const TITLE_LINES = [
   "  ██████╗  ██╗ ",

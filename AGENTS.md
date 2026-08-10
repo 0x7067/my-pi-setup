@@ -1,6 +1,8 @@
 - for web research use hound: `web_search` to find sources, `web_fetch` to read pages and PDFs, `web_crawl` to map a site, `web_screenshot` when the rendered page matters
 - check `content_ok` before trusting fetched content. if hound reports an unbypassable anti-bot wall, switch sources instead of retrying the same url
 
+- when `@ff-labs/pi-fff` is installed and loaded in the current session, prefer `fffind` and `ffgrep` over `fd`/`find` and `rg`/`grep` for file and content search. they are pre-indexed, SIMD-accelerated, frecency-ranked, and significantly faster. use `fd`/`rg` only as a fallback when FFF is unavailable or for shell pipelines. continue using `pi-lens` tools (`ast_grep_search`, `lsp_navigation`, `symbol_search`) for definitions, references, and AST patterns
+
 - run check/format/lint commands when your done making a change. if they don't exist, suggest making them for the project you're in
 - avoid explicit return types unless absolutely needed
 - `as any` should be an absolute last resort. always use real type safety. lean on type inference instead of manually writing new types over and over again
@@ -20,6 +22,7 @@ Example: the user asks for a date picker. Instead of installing flatpickr, writi
 ```
 
 Before writing any code, stop at the first rung that holds:
+
 1. Does this need to be built at all? No? Skip it. (YAGNI)
 2. Does it already exist in this codebase? Reuse the helper, util, or pattern.
 3. Does the standard library do it? Use it.
@@ -33,6 +36,7 @@ The ladder runs after you understand the problem, not instead of it. Read the ta
 Bug fix = root cause, not symptom. A report names a symptom. Before editing, grep every caller of the function you are about to touch. One guard in the shared function is smaller than one guard per caller, and patching only the path the ticket names leaves sibling callers broken. Fix it once, where all callers route through.
 
 Rules:
+
 - No unrequested abstractions.
 - No avoidable dependencies.
 - No speculative scaffolding.
@@ -45,6 +49,7 @@ Rules:
 Complex request? Ship the lazy version and question it in the same response: "Did X. Y covers it. Need full X? Say so." Always tell the user what you skipped. If the user insists on the full version, build it, no re-arguing.
 
 When not to be lazy:
+
 - Do not cut validation, error handling, security, accessibility, data-loss protection, or real edge cases.
 - Do not skip understanding. A small diff you do not understand is just laziness dressed up as efficiency.
 - Non-trivial logic leaves one runnable check behind. Trivial one-liners need no test.
