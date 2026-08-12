@@ -110,9 +110,11 @@ const {
   remoteCompactionV2EndpointUrl,
 } = await import(pathToFileURL(join(repoRoot, "src", "remote-compaction.ts")).href);
 const {
-  buildAssistantMessageFromResponse,
   selectInputItemsForContinuation,
 } = await import(pathToFileURL(join(repoRoot, "src", "openai-ws-stream.ts")).href);
+const { streamOpenAIResponsesWithPhase2B } = await import(
+  pathToFileURL(join(repoRoot, "src", "custom-stream.ts")).href
+);
 const { collectStats } = await import(
   pathToFileURL(join(repoRoot, "..", "stats", "src", "stats.ts")).href
 );
@@ -408,16 +410,31 @@ try {
       },
     },
   });
+  const runFallback = async (id, cacheWriteField) => {
+    const completed = response(id, cacheWriteField);
+    const stream = streamOpenAIResponsesWithPhase2B(
+      responseModel(id),
+      {
+        messages: [{ role: "user", content: "test", timestamp: 0 }],
+        tools: [],
+      },
+      {
+        apiKey: "sk-test",
+        transport: "sse",
+        fetch: async () =>
+          new Response(
+            `data: ${JSON.stringify({ type: "response.completed", response: completed })}\n\ndata: [DONE]\n\n`,
+            { headers: { "Content-Type": "text/event-stream" } },
+          ),
+      },
+    );
+    for await (const _event of stream) {}
+    return stream.result();
+  };
   const messages = [
-    buildAssistantMessageFromResponse(
-      response("absent", undefined),
-      responseModel("absent"),
-    ),
-    buildAssistantMessageFromResponse(response("zero", 0), responseModel("zero")),
-    buildAssistantMessageFromResponse(
-      response("positive", 5),
-      responseModel("positive"),
-    ),
+    await runFallback("absent", undefined),
+    await runFallback("zero", 0),
+    await runFallback("positive", 5),
   ];
   await writeFile(
     join(statsRoot, "session.jsonl"),
