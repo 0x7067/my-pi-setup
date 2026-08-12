@@ -266,10 +266,15 @@ export function streamDevin(
         }
 
         case "usage": {
-          output.usage.input = ev.promptTokens ?? 0;
           output.usage.output = ev.completionTokens ?? 0;
           output.usage.cacheRead = ev.cachedInputTokens ?? 0;
           output.usage.cacheWrite = ev.cacheCreationInputTokens ?? 0;
+          output.usage.input = Math.max(
+            0,
+            (ev.promptTokens ?? 0) -
+              output.usage.cacheRead -
+              output.usage.cacheWrite,
+          );
           if (ev.cacheCreationInputTokens !== undefined) {
             output.usage.cacheWriteReported = true;
           }

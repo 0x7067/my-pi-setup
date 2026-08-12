@@ -200,6 +200,7 @@ test("Pi conversation identity and cache usage survive the provider boundary", a
     false,
   );
   assert.deepEqual(first.usage, restarted.usage);
+  assert.equal(first.usage.input, 35);
   assert.equal(first.usage.cacheRead, 80);
   assert.equal(first.usage.cacheWrite, 5);
 
@@ -228,6 +229,7 @@ test("Pi conversation identity and cache usage survive the provider boundary", a
   assert.equal(stats.byProvider[0]?.key, "devin");
   assert.equal(stats.totals.cacheRead, 80);
   assert.equal(stats.totals.cacheWrite, 5);
+  assert.equal(stats.byProviderModel[0]?.recentCacheReuse, 80 / 120);
   assert.equal(stats.byProviderModel[0]?.cacheWriteStatus, "reported");
   assert.equal(separate.content[0]?.type, "text");
 

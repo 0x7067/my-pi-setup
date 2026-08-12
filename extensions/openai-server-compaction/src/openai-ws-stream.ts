@@ -85,6 +85,9 @@ type AnyMessage = Message & {
 type AssistantMessageWithPhase = AssistantMessage & {
   phase?: OpenAIResponsesAssistantPhase;
 };
+type UsageWithCacheWriteProvenance = Usage & {
+  cacheWriteReported?: boolean;
+};
 type ReplayModelInfo = { input?: ReadonlyArray<string> };
 type WsTransport = "sse" | "websocket" | "auto";
 type ResponsesModel = Model<"openai-responses">;
@@ -122,7 +125,7 @@ function applyServiceTierPricing(
     usage.cost.cacheWrite;
 }
 
-function extractCacheWriteTokens(response: ResponseObject): number {
+function extractCacheWriteUsage(response: ResponseObject) {
   const details = response.usage?.input_tokens_details as
     | { cache_creation_tokens?: unknown; cache_write_tokens?: unknown }
     | undefined;
@@ -130,12 +133,15 @@ function extractCacheWriteTokens(response: ResponseObject): number {
     typeof details?.cache_creation_tokens === "number" &&
     Number.isFinite(details.cache_creation_tokens)
   ) {
-    return details.cache_creation_tokens;
+    return { tokens: details.cache_creation_tokens, reported: true };
   }
-  return typeof details?.cache_write_tokens === "number" &&
+  if (
+    typeof details?.cache_write_tokens === "number" &&
     Number.isFinite(details.cache_write_tokens)
-    ? details.cache_write_tokens
-    : 0;
+  ) {
+    return { tokens: details.cache_write_tokens, reported: true };
+  }
+  return { tokens: 0, reported: false };
 }
 
 function resolveResponsesReasoning(
@@ -575,7 +581,7 @@ function convertMessagesToInputItems(
   return items;
 }
 
-function buildAssistantMessageFromResponse(
+export function buildAssistantMessageFromResponse(
   response: ResponseObject,
   model: Model<any>,
   serviceTier?: "auto" | "default" | "flex" | "priority",
@@ -621,15 +627,16 @@ function buildAssistantMessageFromResponse(
   const hasToolCalls = content.some((c) => c.type === "toolCall");
   const stopReason: StopReason = hasToolCalls ? "toolUse" : "stop";
   const cachedTokens = response.usage?.input_tokens_details?.cached_tokens ?? 0;
-  const cacheWriteTokens = extractCacheWriteTokens(response);
-  const usage: Usage = {
+  const cacheWrite = extractCacheWriteUsage(response);
+  const usage: UsageWithCacheWriteProvenance = {
     input: Math.max(
       0,
-      (response.usage?.input_tokens ?? 0) - cachedTokens - cacheWriteTokens,
+      (response.usage?.input_tokens ?? 0) - cachedTokens - cacheWrite.tokens,
     ),
     output: response.usage?.output_tokens ?? 0,
     cacheRead: cachedTokens,
-    cacheWrite: cacheWriteTokens,
+    cacheWrite: cacheWrite.tokens,
+    ...(cacheWrite.reported ? { cacheWriteReported: true } : {}),
     totalTokens: response.usage?.total_tokens ?? 0,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
   };

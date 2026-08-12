@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, existsSync, lstatSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -109,8 +110,12 @@ const {
   remoteCompactionV2EndpointUrl,
 } = await import(pathToFileURL(join(repoRoot, "src", "remote-compaction.ts")).href);
 const {
+  buildAssistantMessageFromResponse,
   selectInputItemsForContinuation,
 } = await import(pathToFileURL(join(repoRoot, "src", "openai-ws-stream.ts")).href);
+const { collectStats } = await import(
+  pathToFileURL(join(repoRoot, "..", "stats", "src", "stats.ts")).href
+);
 
 const targetModelKey = "openai:openai-responses:gpt-5.4-nano";
 const reconstructed = reconstructRemoteCompactionStateFromBranch({
@@ -370,5 +375,70 @@ assert.deepEqual(incrementalInput, [
     content: "new user",
   },
 ]);
+
+const statsRoot = await mkdtemp(join(tmpdir(), "pi-openai-cache-provenance-"));
+try {
+  const responseModel = (id) => ({
+    id,
+    api: "openai-responses",
+    provider: "openai",
+    baseUrl: "https://api.openai.com/v1",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 128000,
+    maxTokens: 4096,
+  });
+  const response = (id, cacheWriteField) => ({
+    id: `response-${id}`,
+    object: "response",
+    created_at: 0,
+    status: "completed",
+    model: id,
+    output: [],
+    usage: {
+      input_tokens: 100,
+      output_tokens: 10,
+      total_tokens: 110,
+      input_tokens_details: {
+        cached_tokens: 50,
+        ...(cacheWriteField === undefined
+          ? {}
+          : { cache_write_tokens: cacheWriteField }),
+      },
+    },
+  });
+  const messages = [
+    buildAssistantMessageFromResponse(
+      response("absent", undefined),
+      responseModel("absent"),
+    ),
+    buildAssistantMessageFromResponse(response("zero", 0), responseModel("zero")),
+    buildAssistantMessageFromResponse(
+      response("positive", 5),
+      responseModel("positive"),
+    ),
+  ];
+  await writeFile(
+    join(statsRoot, "session.jsonl"),
+    messages
+      .map((message, index) =>
+        JSON.stringify({
+          type: "message",
+          id: `assistant-${index}`,
+          message,
+        }),
+      )
+      .join("\n"),
+  );
+  const stats = await collectStats(statsRoot);
+  const status = (model) =>
+    stats.byProviderModel.find((item) => item.model === model)?.cacheWriteStatus;
+  assert.equal(status("absent"), "not-reported");
+  assert.equal(status("zero"), "none-recorded");
+  assert.equal(status("positive"), "reported");
+} finally {
+  rmSync(statsRoot, { recursive: true, force: true });
+}
 
 console.log("smoke ok");
