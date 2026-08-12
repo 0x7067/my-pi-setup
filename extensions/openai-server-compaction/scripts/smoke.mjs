@@ -1,10 +1,12 @@
 import { execFileSync } from "node:child_process";
+import { once } from "node:events";
 import { mkdirSync, existsSync, lstatSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { WebSocketServer } from "ws";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const localNodeModules = join(repoRoot, "node_modules");
@@ -110,6 +112,8 @@ const {
   remoteCompactionV2EndpointUrl,
 } = await import(pathToFileURL(join(repoRoot, "src", "remote-compaction.ts")).href);
 const {
+  createOpenAIWebSocketStreamFn,
+  releaseWsSession,
   selectInputItemsForContinuation,
 } = await import(pathToFileURL(join(repoRoot, "src", "openai-ws-stream.ts")).href);
 const { streamOpenAIResponsesWithPhase2B } = await import(
@@ -391,13 +395,21 @@ try {
     contextWindow: 128000,
     maxTokens: 4096,
   });
-  const response = (id, cacheWriteField, cacheWriteFieldName = "cache_write_tokens") => ({
+  const response = (
+    id,
+    cacheWriteField,
+    cacheWriteFieldName = "cache_write_tokens",
+    status = "completed",
+  ) => ({
     id: `response-${id}`,
     object: "response",
     created_at: 0,
-    status: "completed",
+    status,
     model: id,
     output: [],
+    ...(status === "failed"
+      ? { error: { code: "provider_error", message: "request failed" } }
+      : {}),
     usage: {
       input_tokens: 100,
       output_tokens: 10,
@@ -410,8 +422,18 @@ try {
       },
     },
   });
-  const runFallback = async (id, cacheWriteField, cacheWriteFieldName) => {
-    const completed = response(id, cacheWriteField, cacheWriteFieldName);
+  const runFallback = async (
+    id,
+    cacheWriteField,
+    cacheWriteFieldName,
+    status,
+  ) => {
+    const completed = response(
+      id,
+      cacheWriteField,
+      cacheWriteFieldName,
+      status,
+    );
     const stream = streamOpenAIResponsesWithPhase2B(
       responseModel(id),
       {
@@ -423,7 +445,7 @@ try {
         transport: "sse",
         fetch: async () =>
           new Response(
-            `data: ${JSON.stringify({ type: "response.completed", response: completed })}\n\ndata: [DONE]\n\n`,
+            `data: ${JSON.stringify({ type: `response.${status ?? "completed"}`, response: completed })}\n\ndata: [DONE]\n\n`,
             { headers: { "Content-Type": "text/event-stream" } },
           ),
       },
@@ -435,6 +457,7 @@ try {
     await runFallback("absent", undefined),
     await runFallback("zero", 0),
     await runFallback("positive", 5, "cache_creation_tokens"),
+    await runFallback("failed", 5, "cache_creation_tokens", "failed"),
   ];
   await writeFile(
     join(statsRoot, "session.jsonl"),
@@ -454,6 +477,59 @@ try {
   assert.equal(status("absent"), "not-reported");
   assert.equal(status("zero"), "none-recorded");
   assert.equal(status("positive"), "reported");
+  assert.equal(status("failed"), "reported");
+  assert.equal(messages[3].stopReason, "error");
+  assert.equal(messages[3].usage.cacheWrite, 5);
+  assert.equal(messages[3].usage.cacheWriteReported, true);
+  assert.equal(messages[3].usage.input, 45);
+
+  const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+  await once(server, "listening");
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    server.once("connection", (socket) => {
+      socket.once("message", () => {
+        socket.send(
+          JSON.stringify({
+            type: "response.failed",
+            response: response(
+              "ws-failed",
+              7,
+              "cache_creation_tokens",
+              "failed",
+            ),
+          }),
+        );
+      });
+    });
+    const websocketStream = createOpenAIWebSocketStreamFn({
+      url: `ws://127.0.0.1:${address.port}`,
+      maxRetries: 0,
+    });
+    const stream = websocketStream(
+      responseModel("ws-failed"),
+      {
+        messages: [{ role: "user", content: "test", timestamp: 0 }],
+        tools: [],
+      },
+      {
+        apiKey: "sk-test",
+        sessionId: "cache-provenance-test",
+        transport: "websocket",
+      },
+    );
+    for await (const _event of stream) {}
+    const failed = await stream.result();
+    assert.equal(failed.stopReason, "error");
+    assert.equal(failed.usage.cacheWrite, 7);
+    assert.equal(failed.usage.cacheWriteReported, true);
+    assert.equal(failed.usage.input, 43);
+  } finally {
+    releaseWsSession("cache-provenance-test");
+    server.close();
+    await once(server, "close");
+  }
 
   const failedStream = streamOpenAIResponsesWithPhase2B(
     responseModel("failure"),

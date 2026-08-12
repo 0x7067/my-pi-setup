@@ -144,14 +144,114 @@ function extractCacheWriteUsage(response: ResponseObject) {
   return { tokens: 0, reported: false };
 }
 
+function usageFromResponse(
+  response: ResponseObject,
+  model: Model<any>,
+  serviceTier: "auto" | "default" | "flex" | "priority" | undefined,
+  previous?: Usage,
+) {
+  const cachedTokens = response.usage?.input_tokens_details?.cached_tokens ?? 0;
+  const cacheWrite = extractCacheWriteUsage(response);
+  const usage: UsageWithCacheWriteProvenance = {
+    ...previous,
+    input: Math.max(
+      0,
+      (response.usage?.input_tokens ?? 0) - cachedTokens - cacheWrite.tokens,
+    ),
+    output: response.usage?.output_tokens ?? 0,
+    cacheRead: cachedTokens,
+    cacheWrite: cacheWrite.tokens,
+    ...(cacheWrite.reported ? { cacheWriteReported: true } : {}),
+    totalTokens: response.usage?.total_tokens ?? 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  };
+  if (!cacheWrite.reported) delete usage.cacheWriteReported;
+  calculateCost(model, usage);
+  applyServiceTierPricing(
+    usage,
+    getModelDescriptor(model),
+    response.service_tier ?? serviceTier,
+  );
+  return usage;
+}
+
+function observeTerminalResponse(
+  response: Response,
+  onTerminal: (response: ResponseObject) => void,
+) {
+  if (!response.body) return response;
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const inspectLine = (line: string) => {
+    const payload = line.startsWith("data:") ? line.slice(5).trim() : "";
+    if (!payload || payload === "[DONE]") return;
+    try {
+      const event = JSON.parse(payload) as OpenAIWebSocketEvent;
+      if (
+        event.type === "response.completed" ||
+        event.type === "response.incomplete" ||
+        event.type === "response.failed"
+      ) {
+        const terminal = responseFromEvent(event);
+        if (terminal) onTerminal(terminal);
+      }
+    } catch {
+      return;
+    }
+  };
+  const inspect = (text: string) => {
+    buffer += text;
+    let lineBreak = /\r?\n/.exec(buffer);
+    while (lineBreak) {
+      inspectLine(buffer.slice(0, lineBreak.index));
+      buffer = buffer.slice(lineBreak.index + lineBreak[0].length);
+      lineBreak = /\r?\n/.exec(buffer);
+    }
+  };
+  const body = response.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        inspect(decoder.decode(chunk, { stream: true }));
+        controller.enqueue(chunk);
+      },
+      flush() {
+        inspect(decoder.decode());
+        if (buffer) inspectLine(buffer);
+      },
+    }),
+  );
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
 async function forwardOpenAIHttpStream(
   model: ResponsesModel,
   context: Context,
   options: SimpleStreamOptions | undefined,
   eventStream: AssistantMessageEventStreamLike,
 ) {
-  const httpStream = streamSimpleOpenAIResponses(model, context, options);
+  const upstreamFetch = options?.fetch ?? globalThis.fetch;
+  let terminalResponse: ResponseObject | undefined;
+  const httpStream = streamSimpleOpenAIResponses(model, context, {
+    ...options,
+    fetch: async (input, init) =>
+      observeTerminalResponse(await upstreamFetch(input, init), (response) => {
+        terminalResponse = response;
+      }),
+  });
   for await (const event of httpStream) {
+    if (terminalResponse && (event.type === "done" || event.type === "error")) {
+      const message = event.type === "done" ? event.message : event.error;
+      message.usage = usageFromResponse(
+        terminalResponse,
+        model,
+        (options as WsOptions | undefined)?.serviceTier,
+        message.usage,
+      );
+    }
     eventStream.push(event);
   }
 }
@@ -161,7 +261,20 @@ export function streamOpenAIHttpResponsesWithProvenance(
   context: Context,
   options?: SimpleStreamOptions,
 ): AssistantMessageEventStream {
-  return streamSimpleOpenAIResponses(model, context, options);
+  const eventStream = createEventStream();
+  queueMicrotask(() => {
+    void forwardOpenAIHttpStream(model, context, options, eventStream).catch(
+      (error) => {
+        const message = buildStreamErrorAssistantMessage({
+          model: getModelDescriptor(model),
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+        eventStream.push({ type: "error", reason: "error", error: message });
+        eventStream.end();
+      },
+    );
+  });
+  return eventStream as AssistantMessageEventStream;
 }
 
 function resolveResponsesReasoning(
@@ -646,26 +759,7 @@ export function buildAssistantMessageFromResponse(
 
   const hasToolCalls = content.some((c) => c.type === "toolCall");
   const stopReason: StopReason = hasToolCalls ? "toolUse" : "stop";
-  const cachedTokens = response.usage?.input_tokens_details?.cached_tokens ?? 0;
-  const cacheWrite = extractCacheWriteUsage(response);
-  const usage: UsageWithCacheWriteProvenance = {
-    input: Math.max(
-      0,
-      (response.usage?.input_tokens ?? 0) - cachedTokens - cacheWrite.tokens,
-    ),
-    output: response.usage?.output_tokens ?? 0,
-    cacheRead: cachedTokens,
-    cacheWrite: cacheWrite.tokens,
-    ...(cacheWrite.reported ? { cacheWriteReported: true } : {}),
-    totalTokens: response.usage?.total_tokens ?? 0,
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-  };
-  calculateCost(model, usage);
-  applyServiceTierPricing(
-    usage,
-    modelInfo,
-    response.service_tier ?? serviceTier,
-  );
+  const usage = usageFromResponse(response, model, serviceTier);
   const message = buildAssistantMessage({
     model: modelInfo,
     content,
@@ -1151,24 +1245,41 @@ export function createOpenAIWebSocketStreamFn(
 
           const unsubscribe = session.manager.onMessage(
             (event: OpenAIWebSocketEvent) => {
-              if (event.type === "response.completed") {
+              if (
+                event.type === "response.completed" ||
+                event.type === "response.failed"
+              ) {
                 const response = responseFromEvent(event);
                 if (!response) {
                   cleanup();
                   reject(
                     new Error(
-                      "OpenAI WebSocket completed event had no valid response.",
+                      "OpenAI WebSocket terminal event had no valid response.",
                     ),
                   );
                   return;
                 }
                 cleanup();
-                session.lastContextLength = capturedContextLength;
                 const assistantMsg = buildAssistantMessageFromResponse(
                   response,
                   model,
                   typedOptions?.serviceTier,
                 );
+                if (event.type === "response.failed") {
+                  releaseWsSession(sessionId);
+                  eventStream.push({
+                    type: "error",
+                    reason: "error",
+                    error: {
+                      ...assistantMsg,
+                      stopReason: "error",
+                      errorMessage: `OpenAI WebSocket response failed: ${response.error?.message ?? "Response failed"}`,
+                    },
+                  });
+                  resolve();
+                  return;
+                }
+                session.lastContextLength = capturedContextLength;
                 setContinuationState(sessionId, {
                   responseId: response.id,
                   modelKey: currentModelKey,
@@ -1185,13 +1296,6 @@ export function createOpenAIWebSocketStreamFn(
                   message: assistantMsg,
                 });
                 resolve();
-              } else if (event.type === "response.failed") {
-                cleanup();
-                reject(
-                  new Error(
-                    `OpenAI WebSocket response failed: ${responseFromEvent(event)?.error?.message ?? "Response failed"}`,
-                  ),
-                );
               } else if (event.type === "error") {
                 cleanup();
                 reject(

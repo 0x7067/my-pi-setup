@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { recordCacheWriteProvenance } from "./index.ts";
 import { collectStats, formatSummary } from "./src/stats.ts";
 
 const message = (
@@ -227,9 +228,8 @@ test("separates cold and mid-session misses without inventing cache writes", asy
   assert.equal(anthropic?.recentCacheReuse, 0);
   assert.equal(anthropic?.cacheWriteStatus, "reported");
   assert.equal(
-    stats.byProviderModel.find(
-      (item) => item.key === "cohere/command-test",
-    )?.cacheWriteStatus,
+    stats.byProviderModel.find((item) => item.key === "cohere/command-test")
+      ?.cacheWriteStatus,
     "not-reported",
   );
   assert.equal(stats.cacheWriteStatus, "not-reported");
@@ -279,6 +279,46 @@ test("uses persisted provenance instead of normalized cache-write zero", async (
       ?.cacheWriteStatus,
     "none-recorded",
   );
+});
+
+test("records only cache writes proven by the finalized message", () => {
+  const assistant = (cacheWrite: number, cacheWriteReported?: boolean) => ({
+    role: "assistant" as const,
+    content: [],
+    api: "anthropic-messages",
+    provider: "anthropic",
+    model: "claude-test",
+    usage: {
+      input: 20,
+      output: 1,
+      cacheRead: 80,
+      cacheWrite,
+      ...(cacheWriteReported === undefined ? {} : { cacheWriteReported }),
+      totalTokens: 101 + cacheWrite,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: "stop" as const,
+    timestamp: 0,
+  });
+
+  assert.equal(
+    recordCacheWriteProvenance({ message: assistant(0) }),
+    undefined,
+  );
+  const exact = assistant(0, true);
+  assert.equal(recordCacheWriteProvenance({ message: exact }), undefined);
+  assert.equal(
+    JSON.parse(JSON.stringify(exact)).usage.cacheWriteReported,
+    true,
+  );
+
+  const transformed = recordCacheWriteProvenance({ message: assistant(5) });
+  assert.ok(transformed);
+  const persisted = JSON.parse(JSON.stringify(transformed.message)) as {
+    usage: { cacheWrite: number; cacheWriteReported?: boolean };
+  };
+  assert.equal(persisted.usage.cacheWrite, 5);
+  assert.equal(persisted.usage.cacheWriteReported, true);
 });
 
 test("keeps trailing untimestamped usage in the recent window", async (context) => {

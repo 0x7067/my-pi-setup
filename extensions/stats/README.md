@@ -1,7 +1,8 @@
 # Pi Stats
 
 Pi Stats reads `~/.pi/agent/sessions/**/*.jsonl` and provides a local dashboard
-plus a `pi-stats` tool. It records nothing and never modifies session files.
+plus a `pi-stats` tool. It annotates new assistant usage with cache-write
+provenance before normal session persistence and never rewrites session files.
 
 - `/stats` or `/stats dashboard` starts the token-protected dashboard.
 - `/stats summary` shows the rollup inside Pi.

@@ -2,11 +2,36 @@ import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import { StatsServer } from "./src/server.ts";
 import { collectStats, formatSummary } from "./src/stats.ts";
 
 const noParameters = Type.Object({});
+
+type CacheWriteUsage = {
+  cacheWrite: number;
+  cacheWriteReported?: boolean;
+};
+
+export function recordCacheWriteProvenance(event: { message: AgentMessage }) {
+  if (event.message.role !== "assistant") return;
+  const usage = event.message.usage as typeof event.message.usage &
+    CacheWriteUsage;
+  if (
+    usage.cacheWriteReported === true ||
+    !Number.isFinite(usage.cacheWrite) ||
+    usage.cacheWrite <= 0
+  ) {
+    return;
+  }
+  return {
+    message: {
+      ...event.message,
+      usage: { ...usage, cacheWriteReported: true },
+    },
+  };
+}
 
 function sessionDirectory() {
   return (
@@ -27,6 +52,8 @@ export default function statsExtension(pi: ExtensionAPI) {
   let server: StatsServer | undefined;
   let starting: Promise<StatsServer> | undefined;
   let shuttingDown = false;
+
+  pi.on("message_end", recordCacheWriteProvenance);
 
   async function dashboard() {
     if (shuttingDown) throw new Error("Pi Stats is shutting down");
