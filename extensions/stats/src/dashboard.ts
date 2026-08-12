@@ -132,7 +132,7 @@ export function dashboardHtml() {
     function modelTable(rows) {
       if (!rows.length) return '<div class="empty">No usage recorded.</div>';
       return '<table><thead><tr><th>Name</th><th>Requests</th><th>Reuse</th><th>Recent</th><th>Recent misses</th><th>Cold misses</th><th>Mid-session misses</th><th>Writes</th><th>Cost</th></tr></thead><tbody>' + rows.map(row => {
-        const reusable = row.input + row.cacheRead;
+        const reusable = row.input + row.cacheRead + row.cacheWrite;
         const reuse = reusable ? percent(row.cacheRead / reusable) : '—';
         const recent = row.recentCacheReuse === null ? '—' : percent(row.recentCacheReuse);
         return '<tr><td title="' + esc(row.key) + '">' + esc(row.key) + '</td><td>' + number.format(row.requests) + '</td><td>' + reuse + '</td><td>' + recent + '</td><td>' + number.format(row.recentCacheMisses) + '</td><td>' + number.format(row.coldStartMisses) + '</td><td>' + number.format(row.midSessionMisses) + '</td><td>' + cacheWrite(row) + '</td><td>' + money.format(row.cost) + '</td></tr>';
@@ -143,7 +143,7 @@ export function dashboardHtml() {
       if (!response.ok) throw new Error('Stats request failed: ' + response.status);
       const stats = await response.json();
       const t = stats.totals;
-      const reusable = t.input + t.cacheRead;
+      const reusable = t.input + t.cacheRead + t.cacheWrite;
       document.querySelector('#requests').textContent = number.format(t.requests);
       document.querySelector('#sessions').textContent = number.format(stats.sessionFiles) + ' session files';
       document.querySelector('#cost').textContent = money.format(t.cost);

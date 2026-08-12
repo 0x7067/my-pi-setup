@@ -99,7 +99,7 @@ test("attributes forked usage to its origin and tolerates malformed timestamps",
   assert.equal(providerModel?.cacheHits, 4);
   assert.equal(providerModel?.coldStartMisses, 0);
   assert.equal(providerModel?.midSessionMisses, 0);
-  assert.equal(providerModel?.recentRequests, 3);
+  assert.equal(providerModel?.recentRequests, 4);
   assert.equal(providerModel?.recentCacheMisses, 0);
   assert.equal(providerModel?.cacheWriteStatus, "not-reported");
 });
@@ -198,6 +198,34 @@ test("separates cold and mid-session misses without inventing cache writes", asy
     (item) => item.key === "anthropic/claude-test",
   );
   assert.equal(anthropic?.cacheWrite, 100);
+  assert.equal(anthropic?.meteredRequests, 1);
+  assert.equal(anthropic?.coldStartMisses, 1);
+  assert.equal(anthropic?.recentRequests, 1);
+  assert.equal(anthropic?.recentCacheReuse, 0);
   assert.equal(anthropic?.cacheWriteStatus, "reported");
   assert.equal(stats.cacheWriteStatus, "reported");
+});
+
+test("labels an archive with only unmetered responses as unmetered", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "pi-stats-unmetered-test-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(
+    join(root, "session.jsonl"),
+    `${JSON.stringify({
+      type: "message",
+      id: "error",
+      message: {
+        role: "assistant",
+        provider: "cursor",
+        model: "composer-test",
+        stopReason: "error",
+      },
+    })}\n`,
+    "utf8",
+  );
+
+  const stats = await collectStats(root);
+  assert.equal(stats.totals.requests, 1);
+  assert.equal(stats.cacheWriteStatus, "unmetered");
+  assert.equal(stats.byProviderModel[0]?.cacheWriteStatus, "unmetered");
 });

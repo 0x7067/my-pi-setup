@@ -79,6 +79,7 @@ interface UsageRecord {
   session: string;
   sequence: number;
   timestamp: number | undefined;
+  fallbackTimestamp: number | undefined;
   project: string;
   model: string;
   provider: string;
@@ -148,6 +149,10 @@ function cacheWriteStatus(
   return meteredRequests > 0 ? "none-recorded" : "unmetered";
 }
 
+function cacheInput(record: UsageRecord) {
+  return record.value.input + record.value.cacheRead + record.value.cacheWrite;
+}
+
 function providerModelBreakdown(
   totals: Map<string, UsageTotals>,
   records: Map<string, UsageRecord[]>,
@@ -155,9 +160,7 @@ function providerModelBreakdown(
   return [...totals.entries()]
     .map(([key, value]): ProviderModelBreakdown => {
       const modelRecords = records.get(key) ?? [];
-      const metered = modelRecords.filter(
-        (record) => record.value.input + record.value.cacheRead > 0,
-      );
+      const metered = modelRecords.filter((record) => cacheInput(record) > 0);
       const sessions = new Map<string, UsageRecord[]>();
       for (const record of metered) {
         const session = sessions.get(record.session) ?? [];
@@ -176,8 +179,13 @@ function providerModelBreakdown(
       }
 
       const recent = metered
-        .filter((record) => record.timestamp !== undefined)
-        .sort((left, right) => left.timestamp! - right.timestamp!)
+        .sort(
+          (left, right) =>
+            (left.timestamp ?? left.fallbackTimestamp ?? 0) -
+              (right.timestamp ?? right.fallbackTimestamp ?? 0) ||
+            left.session.localeCompare(right.session) ||
+            left.sequence - right.sequence,
+        )
         .slice(-20);
       const recentInput = recent.reduce(
         (sum, record) => sum + record.value.input,
@@ -187,7 +195,11 @@ function providerModelBreakdown(
         (sum, record) => sum + record.value.cacheRead,
         0,
       );
-      const recentReusable = recentInput + recentCacheRead;
+      const recentCacheWrite = recent.reduce(
+        (sum, record) => sum + record.value.cacheWrite,
+        0,
+      );
+      const recentReusable = recentInput + recentCacheRead + recentCacheWrite;
       const [provider, model] = JSON.parse(key) as [string, string];
       return {
         key: `${provider}/${model}`,
@@ -330,6 +342,7 @@ async function parseSession(file: string): Promise<ParsedSession> {
       session: file,
       sequence: lineNumber,
       timestamp: timestampMs,
+      fallbackTimestamp: undefined,
       project,
       model,
       provider,
@@ -351,6 +364,7 @@ export async function collectStats(root: string): Promise<PiStats> {
   const byProject = new Map<string, UsageTotals>();
   const byDay = new Map<string, UsageTotals>();
   const seen = new Set<string>();
+  let meteredRequests = 0;
   const sessions = await Promise.all(files.map(parseSession));
   sessions.sort(
     (left, right) =>
@@ -363,8 +377,12 @@ export async function collectStats(root: string): Promise<PiStats> {
 
   for (const session of sessions) {
     for (const record of session.records) {
+      record.fallbackTimestamp = Number.isFinite(session.startedAt)
+        ? session.startedAt
+        : undefined;
       if (seen.has(record.stableId)) continue;
       seen.add(record.stableId);
+      if (cacheInput(record) > 0) meteredRequests += 1;
       add(totals, record.value);
       breakdown(byModel, record.model, record.value);
       const providerModelKey = JSON.stringify([record.provider, record.model]);
@@ -384,7 +402,7 @@ export async function collectStats(root: string): Promise<PiStats> {
     sessionFiles: files.length,
     malformedLines,
     totals,
-    cacheWriteStatus: cacheWriteStatus(totals),
+    cacheWriteStatus: cacheWriteStatus(totals, meteredRequests),
     byModel: sorted(byModel),
     byProviderModel: providerModelBreakdown(
       byProviderModel,
@@ -397,7 +415,8 @@ export async function collectStats(root: string): Promise<PiStats> {
 }
 
 export function formatSummary(stats: PiStats) {
-  const reusable = stats.totals.input + stats.totals.cacheRead;
+  const reusable =
+    stats.totals.input + stats.totals.cacheRead + stats.totals.cacheWrite;
   const cacheRate =
     reusable > 0 ? (stats.totals.cacheRead / reusable) * 100 : 0;
   const errorRate =
