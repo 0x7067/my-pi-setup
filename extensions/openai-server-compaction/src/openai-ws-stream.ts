@@ -175,6 +175,24 @@ function usageFromResponse(
   return usage;
 }
 
+function terminalResponseFailure(response: ResponseObject) {
+  if (response.status === "incomplete") {
+    const reason = response.incomplete_details?.reason;
+    if (reason === "max_output_tokens")
+      return { stopReason: "length" as const };
+    return {
+      stopReason: "error" as const,
+      errorMessage: reason
+        ? `Response incomplete: ${reason}`
+        : "Response incomplete without a provider reason",
+    };
+  }
+  return {
+    stopReason: "error" as const,
+    errorMessage: response.error?.message ?? "Response failed",
+  };
+}
+
 function observeTerminalResponse(
   response: Response,
   onTerminal: (response: ResponseObject) => void,
@@ -1247,7 +1265,8 @@ export function createOpenAIWebSocketStreamFn(
             (event: OpenAIWebSocketEvent) => {
               if (
                 event.type === "response.completed" ||
-                event.type === "response.failed"
+                event.type === "response.failed" ||
+                event.type === "response.incomplete"
               ) {
                 const response = responseFromEvent(event);
                 if (!response) {
@@ -1265,17 +1284,29 @@ export function createOpenAIWebSocketStreamFn(
                   model,
                   typedOptions?.serviceTier,
                 );
-                if (event.type === "response.failed") {
+                if (event.type !== "response.completed") {
+                  const failure = terminalResponseFailure(response);
                   releaseWsSession(sessionId);
-                  eventStream.push({
-                    type: "error",
-                    reason: "error",
-                    error: {
-                      ...assistantMsg,
-                      stopReason: "error",
-                      errorMessage: `OpenAI WebSocket response failed: ${response.error?.message ?? "Response failed"}`,
-                    },
-                  });
+                  if (failure.stopReason === "length") {
+                    eventStream.push({
+                      type: "done",
+                      reason: "length",
+                      message: { ...assistantMsg, stopReason: "length" },
+                    });
+                  } else {
+                    eventStream.push({
+                      type: "error",
+                      reason: "error",
+                      error: {
+                        ...assistantMsg,
+                        stopReason: "error",
+                        errorMessage:
+                          event.type === "response.failed"
+                            ? `OpenAI WebSocket response failed: ${failure.errorMessage}`
+                            : failure.errorMessage,
+                      },
+                    });
+                  }
                   resolve();
                   return;
                 }

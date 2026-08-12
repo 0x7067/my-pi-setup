@@ -312,6 +312,16 @@ test("records only cache writes proven by the finalized message", () => {
     true,
   );
 
+  const explicitFalse = assistant(5, false);
+  assert.equal(
+    recordCacheWriteProvenance({ message: explicitFalse }),
+    undefined,
+  );
+  assert.equal(
+    JSON.parse(JSON.stringify(explicitFalse)).usage.cacheWriteReported,
+    false,
+  );
+
   const transformed = recordCacheWriteProvenance({ message: assistant(5) });
   assert.ok(transformed);
   const persisted = JSON.parse(JSON.stringify(transformed.message)) as {

@@ -16,6 +16,7 @@ export interface ResponseObject {
   usage?: UsageInfo;
   service_tier?: "auto" | "default" | "flex" | "priority";
   error?: { code: string; message: string };
+  incomplete_details?: { reason?: string };
 }
 
 export interface UsageInfo {
@@ -71,6 +72,11 @@ export interface ResponseFailedEvent {
   response: ResponseObject;
 }
 
+export interface ResponseIncompleteEvent {
+  type: "response.incomplete";
+  response: ResponseObject;
+}
+
 export interface OutputTextDeltaEvent {
   type: "response.output_text.delta";
   item_id: string;
@@ -89,6 +95,7 @@ export interface ErrorEvent {
 export type OpenAIWebSocketEvent =
   | ResponseCompletedEvent
   | ResponseFailedEvent
+  | ResponseIncompleteEvent
   | OutputTextDeltaEvent
   | ErrorEvent
   | { type: string; [key: string]: unknown };

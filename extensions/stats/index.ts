@@ -19,7 +19,7 @@ export function recordCacheWriteProvenance(event: { message: AgentMessage }) {
   const usage = event.message.usage as typeof event.message.usage &
     CacheWriteUsage;
   if (
-    usage.cacheWriteReported === true ||
+    typeof usage.cacheWriteReported === "boolean" ||
     !Number.isFinite(usage.cacheWrite) ||
     usage.cacheWrite <= 0
   ) {

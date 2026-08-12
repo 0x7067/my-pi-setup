@@ -410,6 +410,9 @@ try {
     ...(status === "failed"
       ? { error: { code: "provider_error", message: "request failed" } }
       : {}),
+    ...(status === "incomplete"
+      ? { incomplete_details: { reason: "content_filter" } }
+      : {}),
     usage: {
       input_tokens: 100,
       output_tokens: 10,
@@ -458,6 +461,7 @@ try {
     await runFallback("zero", 0),
     await runFallback("positive", 5, "cache_creation_tokens"),
     await runFallback("failed", 5, "cache_creation_tokens", "failed"),
+    await runFallback("incomplete", 6, "cache_creation_tokens", "incomplete"),
   ];
   await writeFile(
     join(statsRoot, "session.jsonl"),
@@ -478,27 +482,40 @@ try {
   assert.equal(status("zero"), "none-recorded");
   assert.equal(status("positive"), "reported");
   assert.equal(status("failed"), "reported");
+  assert.equal(status("incomplete"), "reported");
   assert.equal(messages[3].stopReason, "error");
   assert.equal(messages[3].usage.cacheWrite, 5);
   assert.equal(messages[3].usage.cacheWriteReported, true);
   assert.equal(messages[3].usage.input, 45);
+  assert.equal(messages[4].stopReason, "error");
+  assert.equal(messages[4].usage.cacheWrite, 6);
+  assert.equal(messages[4].usage.cacheWriteReported, true);
+  assert.equal(messages[4].usage.input, 44);
 
   const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
   await once(server, "listening");
   try {
     const address = server.address();
     assert.ok(address && typeof address === "object");
-    server.once("connection", (socket) => {
-      socket.once("message", () => {
+    server.on("connection", (socket) => {
+      socket.once("message", (raw) => {
+        const request = JSON.parse(String(raw));
+        const wsResponse =
+          request.model === "ws-incomplete"
+            ? response(
+                "ws-incomplete",
+                6,
+                "cache_creation_tokens",
+                "incomplete",
+              )
+            : response("ws-failed", 7, "cache_creation_tokens", "failed");
         socket.send(
           JSON.stringify({
-            type: "response.failed",
-            response: response(
-              "ws-failed",
-              7,
-              "cache_creation_tokens",
-              "failed",
-            ),
+            type:
+              wsResponse.status === "incomplete"
+                ? "response.incomplete"
+                : "response.failed",
+            response: wsResponse,
           }),
         );
       });
@@ -525,8 +542,28 @@ try {
     assert.equal(failed.usage.cacheWrite, 7);
     assert.equal(failed.usage.cacheWriteReported, true);
     assert.equal(failed.usage.input, 43);
+
+    const incompleteStream = websocketStream(
+      responseModel("ws-incomplete"),
+      {
+        messages: [{ role: "user", content: "test", timestamp: 0 }],
+        tools: [],
+      },
+      {
+        apiKey: "sk-test",
+        sessionId: "cache-provenance-incomplete",
+        transport: "websocket",
+      },
+    );
+    for await (const _event of incompleteStream) {}
+    const incomplete = await incompleteStream.result();
+    assert.equal(incomplete.stopReason, "error");
+    assert.equal(incomplete.usage.cacheWrite, 6);
+    assert.equal(incomplete.usage.cacheWriteReported, true);
+    assert.equal(incomplete.usage.input, 44);
   } finally {
     releaseWsSession("cache-provenance-test");
+    releaseWsSession("cache-provenance-incomplete");
     server.close();
     await once(server, "close");
   }
