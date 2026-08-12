@@ -1,6 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdirSync, existsSync, lstatSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import {
+  mkdirSync,
+  existsSync,
+  lstatSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { homedir, tmpdir } from "node:os";
@@ -47,7 +54,9 @@ function candidateRoots() {
     "node_modules",
   );
   roots.add(voltaPiRoot);
-  roots.add(join(voltaPiRoot, "@earendil-works", "pi-coding-agent", "node_modules"));
+  roots.add(
+    join(voltaPiRoot, "@earendil-works", "pi-coding-agent", "node_modules"),
+  );
 
   return [...roots];
 }
@@ -95,8 +104,14 @@ for (const packageName of [
   ensureLocalPeerLink(packageName);
 }
 
-const { default: extensionFactory } = await import(pathToFileURL(join(repoRoot, "src", "index.ts")).href);
-assert.equal(typeof extensionFactory, "function", "extension entrypoint should export a function");
+const { default: extensionFactory } = await import(
+  pathToFileURL(join(repoRoot, "src", "index.ts")).href
+);
+assert.equal(
+  typeof extensionFactory,
+  "function",
+  "extension entrypoint should export a function",
+);
 
 const {
   buildCodexWebSocketHeaders,
@@ -110,12 +125,16 @@ const {
   processCompactedHistory,
   reconstructRemoteCompactionStateFromBranch,
   remoteCompactionV2EndpointUrl,
-} = await import(pathToFileURL(join(repoRoot, "src", "remote-compaction.ts")).href);
+} = await import(
+  pathToFileURL(join(repoRoot, "src", "remote-compaction.ts")).href
+);
 const {
   createOpenAIWebSocketStreamFn,
   releaseWsSession,
   selectInputItemsForContinuation,
-} = await import(pathToFileURL(join(repoRoot, "src", "openai-ws-stream.ts")).href);
+} = await import(
+  pathToFileURL(join(repoRoot, "src", "openai-ws-stream.ts")).href
+);
 const { streamOpenAIResponsesWithPhase2B } = await import(
   pathToFileURL(join(repoRoot, "src", "custom-stream.ts")).href
 );
@@ -254,18 +273,31 @@ const parsedV2Events = parseRemoteCompactionV2Events([
   },
   {
     type: "response.completed",
-    response: { usage: { input_tokens: 10, output_tokens: 2, total_tokens: 12 } },
+    response: {
+      usage: { input_tokens: 10, output_tokens: 2, total_tokens: 12 },
+    },
   },
 ]);
 assert.equal(parsedV2Events.compactionItem.type, "compaction");
 const v2History = buildRemoteCompactionV2History(
   [
-    { type: "message", role: "user", content: [{ type: "input_text", text: "retain user" }] },
-    { type: "message", role: "assistant", content: [{ type: "output_text", text: "summarize assistant" }] },
+    {
+      type: "message",
+      role: "user",
+      content: [{ type: "input_text", text: "retain user" }],
+    },
+    {
+      type: "message",
+      role: "assistant",
+      content: [{ type: "output_text", text: "summarize assistant" }],
+    },
   ],
   parsedV2Events.compactionItem,
 );
-assert.deepEqual(v2History.map((item) => item.type), ["message", "compaction"]);
+assert.deepEqual(
+  v2History.map((item) => item.type),
+  ["message", "compaction"],
+);
 assert.equal(v2History[0].role, "user");
 
 const normalizedPromptItems = normalizeResponseItemsForPrompt(
@@ -274,7 +306,9 @@ const normalizedPromptItems = normalizeResponseItemsForPrompt(
     {
       type: "message",
       role: "user",
-      content: [{ type: "input_image", image_url: "data:image/png;base64,AAAA" }],
+      content: [
+        { type: "input_image", image_url: "data:image/png;base64,AAAA" },
+      ],
     },
     { type: "function_call", name: "read", call_id: "call-1", arguments: "{}" },
     { type: "function_call_output", call_id: "orphan", output: "drop" },
@@ -284,7 +318,10 @@ const normalizedPromptItems = normalizeResponseItemsForPrompt(
 );
 assert.equal(normalizedPromptItems[0].type, "message");
 assert.deepEqual(normalizedPromptItems[0].content, [
-  { type: "input_text", text: "image content omitted because you do not support image input" },
+  {
+    type: "input_text",
+    text: "image content omitted because you do not support image input",
+  },
 ]);
 assert.deepEqual(normalizedPromptItems[2], {
   type: "function_call_output",
@@ -292,17 +329,35 @@ assert.deepEqual(normalizedPromptItems[2], {
   output: "aborted",
 });
 assert.equal(normalizedPromptItems[3].result, "");
-assert.doesNotMatch(JSON.stringify(normalizedPromptItems), /orphan|ghost_snapshot/);
+assert.doesNotMatch(
+  JSON.stringify(normalizedPromptItems),
+  /orphan|ghost_snapshot/,
+);
 
 const compactedHistory = processCompactedHistory([
-  { type: "message", role: "developer", content: [{ type: "input_text", text: "drop developer" }] },
+  {
+    type: "message",
+    role: "developer",
+    content: [{ type: "input_text", text: "drop developer" }],
+  },
   { type: "message", role: "user", content: [] },
-  { type: "message", role: "user", content: [{ type: "input_text", text: "keep user" }] },
-  { type: "message", role: "assistant", content: [{ type: "output_text", text: "keep assistant" }] },
+  {
+    type: "message",
+    role: "user",
+    content: [{ type: "input_text", text: "keep user" }],
+  },
+  {
+    type: "message",
+    role: "assistant",
+    content: [{ type: "output_text", text: "keep assistant" }],
+  },
   { type: "function_call", name: "read", call_id: "call-2", arguments: "{}" },
   { type: "compaction", encrypted_content: "keep" },
 ]);
-assert.deepEqual(compactedHistory.map((item) => item.type), ["message", "message", "compaction"]);
+assert.deepEqual(
+  compactedHistory.map((item) => item.type),
+  ["message", "message", "compaction"],
+);
 assert.equal(compactedHistory[0].role, "user");
 assert.equal(compactedHistory[1].role, "assistant");
 
@@ -321,7 +376,10 @@ assert.equal(compactionHeaders.session_id, "session-123");
 assert.equal(compactionHeaders["x-codex-window-id"], "session-123:0");
 assert.match(compactionHeaders["x-codex-installation-id"], /^[0-9a-f-]{36}$/);
 assert.equal(compactionHeaders["x-extra"], "yes");
-assert.equal(compactionHeaders["x-codex-beta-features"], "remote_compaction_v2");
+assert.equal(
+  compactionHeaders["x-codex-beta-features"],
+  "remote_compaction_v2",
+);
 assert.equal(compactionHeaders.accept, "text/event-stream");
 
 const websocketHeaders = buildCodexWebSocketHeaders("session-123");
@@ -453,7 +511,8 @@ try {
           ),
       },
     );
-    for await (const _event of stream) {}
+    for await (const _event of stream) {
+    }
     return stream.result();
   };
   const messages = [
@@ -477,7 +536,8 @@ try {
   );
   const stats = await collectStats(statsRoot);
   const status = (model) =>
-    stats.byProviderModel.find((item) => item.model === model)?.cacheWriteStatus;
+    stats.byProviderModel.find((item) => item.model === model)
+      ?.cacheWriteStatus;
   assert.equal(status("absent"), "not-reported");
   assert.equal(status("zero"), "none-recorded");
   assert.equal(status("positive"), "reported");
@@ -536,7 +596,8 @@ try {
         transport: "websocket",
       },
     );
-    for await (const _event of stream) {}
+    for await (const _event of stream) {
+    }
     const failed = await stream.result();
     assert.equal(failed.stopReason, "error");
     assert.equal(failed.usage.cacheWrite, 7);
@@ -555,7 +616,8 @@ try {
         transport: "websocket",
       },
     );
-    for await (const _event of incompleteStream) {}
+    for await (const _event of incompleteStream) {
+    }
     const incomplete = await incompleteStream.result();
     assert.equal(incomplete.stopReason, "error");
     assert.equal(incomplete.usage.cacheWrite, 6);
@@ -582,7 +644,8 @@ try {
       },
     },
   );
-  for await (const _event of failedStream) {}
+  for await (const _event of failedStream) {
+  }
   const failed = await failedStream.result();
   assert.equal(failed.stopReason, "error");
   assert.equal(failed.errorMessage, "Connection error.");
