@@ -150,7 +150,7 @@ export function dashboardHtml() {
       document.querySelector('#tokens').textContent = number.format(t.totalTokens);
       document.querySelector('#token-note').textContent = number.format(t.output) + ' output · ' + number.format(t.reasoning) + ' reasoning';
       document.querySelector('#cache').textContent = percent(reusable ? t.cacheRead / reusable : 0);
-      document.querySelector('#cache-note').textContent = 'Read ÷ reusable input · ' + (stats.cacheWriteStatus === 'reported' ? number.format(t.cacheWrite) + ' write tokens' : stats.cacheWriteStatus === 'not-reported' ? 'writes not reported' : stats.cacheWriteStatus === 'none-recorded' ? 'no cache activity' : 'usage unmetered');
+      document.querySelector('#cache-note').textContent = 'Read ÷ reusable input · ' + (stats.cacheWriteStatus === 'reported' ? number.format(t.cacheWrite) + ' write tokens' : stats.cacheWriteStatus === 'not-reported' ? 'writes not reported' : stats.cacheWriteStatus === 'none-recorded' ? 'no cache writes recorded' : 'usage unmetered');
       document.querySelector('#errors').textContent = percent(t.requests ? t.errors / t.requests : 0);
       document.querySelector('#errors').className = 'metric-value ' + (t.errors ? 'critical' : '');
       document.querySelector('#malformed').textContent = stats.malformedLines + ' malformed lines skipped';

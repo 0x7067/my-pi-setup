@@ -5,6 +5,36 @@ import { join } from "node:path";
 import test from "node:test";
 import { collectStats, formatSummary } from "./src/stats.ts";
 
+const message = (
+  id: string,
+  timestamp: string,
+  usage: { input: number; cacheRead: number; cacheWrite?: number },
+  provider = "openai-codex",
+  model = "gpt-test",
+) =>
+  JSON.stringify({
+    type: "message",
+    id,
+    timestamp,
+    message: {
+      role: "assistant",
+      provider,
+      model,
+      stopReason: "stop",
+      usage: {
+        input: usage.input,
+        output: 1,
+        cacheRead: usage.cacheRead,
+        ...(usage.cacheWrite === undefined
+          ? {}
+          : { cacheWrite: usage.cacheWrite }),
+        totalTokens:
+          usage.input + usage.cacheRead + (usage.cacheWrite ?? 0) + 1,
+        cost: { total: 0 },
+      },
+    },
+  });
+
 test("attributes forked usage to its origin and tolerates malformed timestamps", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "pi-stats-test-"));
   await mkdir(join(root, "project"));
@@ -91,8 +121,8 @@ test("attributes forked usage to its origin and tolerates malformed timestamps",
     false,
   );
   assert.equal(stats.byDay.find((item) => item.key === "unknown")?.requests, 1);
-  assert.equal(stats.cacheWriteStatus, "not-reported");
-  assert.match(formatSummary(stats), /Cache writes not reported/);
+  assert.equal(stats.cacheWriteStatus, "none-recorded");
+  assert.match(formatSummary(stats), /No cache writes recorded/);
   const providerModel = stats.byProviderModel[0];
   assert.equal(providerModel?.key, "openai-codex/gpt-test");
   assert.equal(providerModel?.meteredRequests, 4);
@@ -101,40 +131,12 @@ test("attributes forked usage to its origin and tolerates malformed timestamps",
   assert.equal(providerModel?.midSessionMisses, 0);
   assert.equal(providerModel?.recentRequests, 4);
   assert.equal(providerModel?.recentCacheMisses, 0);
-  assert.equal(providerModel?.cacheWriteStatus, "not-reported");
+  assert.equal(providerModel?.cacheWriteStatus, "none-recorded");
 });
 
 test("separates cold and mid-session misses without inventing cache writes", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "pi-stats-cache-test-"));
   context.after(() => rm(root, { recursive: true, force: true }));
-
-  const message = (
-    id: string,
-    timestamp: string,
-    usage: { input: number; cacheRead: number; cacheWrite?: number },
-    provider = "openai-codex",
-    model = "gpt-test",
-  ) =>
-    JSON.stringify({
-      type: "message",
-      id,
-      timestamp,
-      message: {
-        role: "assistant",
-        provider,
-        model,
-        stopReason: "stop",
-        usage: {
-          input: usage.input,
-          output: 1,
-          cacheRead: usage.cacheRead,
-          cacheWrite: usage.cacheWrite ?? 0,
-          totalTokens:
-            usage.input + usage.cacheRead + (usage.cacheWrite ?? 0) + 1,
-          cost: { total: 0 },
-        },
-      },
-    });
 
   await writeFile(
     join(root, "session-a.jsonl"),
@@ -178,6 +180,13 @@ test("separates cold and mid-session misses without inventing cache writes", asy
         "anthropic",
         "claude-test",
       ),
+      message(
+        "b3",
+        "2026-08-08T10:00:03.000Z",
+        { input: 100, cacheRead: 0 },
+        "cohere",
+        "command-test",
+      ),
     ].join("\n") + "\n",
     "utf8",
   );
@@ -203,7 +212,59 @@ test("separates cold and mid-session misses without inventing cache writes", asy
   assert.equal(anthropic?.recentRequests, 1);
   assert.equal(anthropic?.recentCacheReuse, 0);
   assert.equal(anthropic?.cacheWriteStatus, "reported");
-  assert.equal(stats.cacheWriteStatus, "reported");
+  assert.equal(
+    stats.byProviderModel.find(
+      (item) => item.key === "cohere/command-test",
+    )?.cacheWriteStatus,
+    "not-reported",
+  );
+  assert.equal(stats.cacheWriteStatus, "not-reported");
+});
+
+test("keeps trailing untimestamped usage in the recent window", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "pi-stats-chronology-test-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+
+  const entries = [
+    JSON.stringify({
+      type: "session",
+      timestamp: "2026-08-08T09:00:00.000Z",
+      cwd: "/work/chronology",
+    }),
+    ...Array.from({ length: 20 }, (_, index) =>
+      message(
+        `hit-${index}`,
+        `2026-08-08T09:00:${String(index + 1).padStart(2, "0")}.000Z`,
+        { input: 10, cacheRead: 90 },
+      ),
+    ),
+    JSON.stringify({
+      type: "message",
+      id: "untimestamped-miss",
+      message: {
+        role: "assistant",
+        provider: "openai-codex",
+        model: "gpt-test",
+        stopReason: "stop",
+        usage: {
+          input: 100,
+          output: 1,
+          cacheRead: 0,
+          totalTokens: 101,
+          cost: { total: 0 },
+        },
+      },
+    }),
+  ];
+  await writeFile(
+    join(root, "session.jsonl"),
+    `${entries.join("\n")}\n`,
+    "utf8",
+  );
+
+  const stats = await collectStats(root);
+  assert.equal(stats.byProviderModel[0]?.recentRequests, 20);
+  assert.equal(stats.byProviderModel[0]?.recentCacheMisses, 1);
 });
 
 test("labels an archive with only unmetered responses as unmetered", async (context) => {

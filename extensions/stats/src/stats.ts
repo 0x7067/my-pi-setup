@@ -79,7 +79,8 @@ interface UsageRecord {
   session: string;
   sequence: number;
   timestamp: number | undefined;
-  fallbackTimestamp: number | undefined;
+  chronology: number;
+  cacheWriteReported: boolean;
   project: string;
   model: string;
   provider: string;
@@ -142,11 +143,12 @@ function sorted(map: Map<string, UsageTotals>, chronological = false) {
 
 function cacheWriteStatus(
   totals: UsageTotals,
-  meteredRequests = totals.requests,
+  meteredRequests: number,
+  cacheWriteReports: number,
 ): CacheWriteStatus {
-  if (totals.cacheWrite > 0) return "reported";
-  if (totals.cacheRead > 0) return "not-reported";
-  return meteredRequests > 0 ? "none-recorded" : "unmetered";
+  if (meteredRequests === 0) return "unmetered";
+  if (cacheWriteReports < meteredRequests) return "not-reported";
+  return totals.cacheWrite > 0 ? "reported" : "none-recorded";
 }
 
 function cacheInput(record: UsageRecord) {
@@ -181,8 +183,7 @@ function providerModelBreakdown(
       const recent = metered
         .sort(
           (left, right) =>
-            (left.timestamp ?? left.fallbackTimestamp ?? 0) -
-              (right.timestamp ?? right.fallbackTimestamp ?? 0) ||
+            left.chronology - right.chronology ||
             left.session.localeCompare(right.session) ||
             left.sequence - right.sequence,
         )
@@ -217,7 +218,11 @@ function providerModelBreakdown(
         ).length,
         recentCacheReuse:
           recentReusable > 0 ? recentCacheRead / recentReusable : null,
-        cacheWriteStatus: cacheWriteStatus(value, metered.length),
+        cacheWriteStatus: cacheWriteStatus(
+          value,
+          metered.length,
+          metered.filter((record) => record.cacheWriteReported).length,
+        ),
       };
     })
     .sort(
@@ -321,6 +326,9 @@ async function parseSession(file: string): Promise<ParsedSession> {
     const rawTimestamp = message.timestamp ?? entry.timestamp;
     const timestamp = validTimestamp(rawTimestamp);
     const timestampMs = timestamp ? new Date(timestamp).getTime() : undefined;
+    const cacheWriteReported =
+      typeof message.usage?.cacheWrite === "number" &&
+      Number.isFinite(message.usage.cacheWrite);
     const day = /^\d{4}-\d{2}-\d{2}/.exec(timestamp)?.[0] ?? "unknown";
     const stableId =
       typeof entry.id === "string"
@@ -333,6 +341,7 @@ async function parseSession(file: string): Promise<ParsedSession> {
             value.reasoning,
             value.cacheRead,
             value.cacheWrite,
+            cacheWriteReported,
             value.totalTokens,
             value.cost,
           ])}`
@@ -342,13 +351,24 @@ async function parseSession(file: string): Promise<ParsedSession> {
       session: file,
       sequence: lineNumber,
       timestamp: timestampMs,
-      fallbackTimestamp: undefined,
+      chronology: 0,
+      cacheWriteReported,
       project,
       model,
       provider,
       day,
       value,
     });
+  }
+
+  let chronology = Number.NEGATIVE_INFINITY;
+  const fallbackTimestamp = Number.isFinite(startedAt) ? startedAt : 0;
+  for (const record of records) {
+    chronology = Math.max(
+      chronology,
+      record.timestamp ?? fallbackTimestamp,
+    );
+    record.chronology = chronology;
   }
 
   return { file, startedAt, malformedLines, records };
@@ -365,6 +385,7 @@ export async function collectStats(root: string): Promise<PiStats> {
   const byDay = new Map<string, UsageTotals>();
   const seen = new Set<string>();
   let meteredRequests = 0;
+  let cacheWriteReports = 0;
   const sessions = await Promise.all(files.map(parseSession));
   sessions.sort(
     (left, right) =>
@@ -377,12 +398,12 @@ export async function collectStats(root: string): Promise<PiStats> {
 
   for (const session of sessions) {
     for (const record of session.records) {
-      record.fallbackTimestamp = Number.isFinite(session.startedAt)
-        ? session.startedAt
-        : undefined;
       if (seen.has(record.stableId)) continue;
       seen.add(record.stableId);
-      if (cacheInput(record) > 0) meteredRequests += 1;
+      if (cacheInput(record) > 0) {
+        meteredRequests += 1;
+        if (record.cacheWriteReported) cacheWriteReports += 1;
+      }
       add(totals, record.value);
       breakdown(byModel, record.model, record.value);
       const providerModelKey = JSON.stringify([record.provider, record.model]);
@@ -402,7 +423,11 @@ export async function collectStats(root: string): Promise<PiStats> {
     sessionFiles: files.length,
     malformedLines,
     totals,
-    cacheWriteStatus: cacheWriteStatus(totals, meteredRequests),
+    cacheWriteStatus: cacheWriteStatus(
+      totals,
+      meteredRequests,
+      cacheWriteReports,
+    ),
     byModel: sorted(byModel),
     byProviderModel: providerModelBreakdown(
       byProviderModel,
@@ -429,7 +454,7 @@ export function formatSummary(stats: PiStats) {
       : stats.cacheWriteStatus === "not-reported"
         ? "Cache writes not reported by recorded providers"
         : stats.cacheWriteStatus === "none-recorded"
-          ? "No cache activity recorded"
+          ? "No cache writes recorded"
           : "Cache usage is unmetered";
   return [
     `${stats.totals.requests.toLocaleString()} requests across ${stats.sessionFiles.toLocaleString()} session files`,
