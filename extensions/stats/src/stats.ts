@@ -54,6 +54,7 @@ interface Usage {
   reasoning?: unknown;
   cacheRead?: unknown;
   cacheWrite?: unknown;
+  cacheWriteReported?: unknown;
   totalTokens?: unknown;
   cost?: { total?: unknown };
 }
@@ -149,6 +150,19 @@ function cacheWriteStatus(
   if (meteredRequests === 0) return "unmetered";
   if (cacheWriteReports < meteredRequests) return "not-reported";
   return totals.cacheWrite > 0 ? "reported" : "none-recorded";
+}
+
+function cacheWriteSummary(total: number, status: CacheWriteStatus) {
+  const reported = `${total.toLocaleString()} cache-write tokens reported`;
+  if (status === "reported") return reported;
+  if (status === "not-reported") {
+    return total > 0
+      ? `${reported}; additional writes not reported`
+      : "Cache writes not reported by recorded providers";
+  }
+  return status === "none-recorded"
+    ? "No cache writes recorded"
+    : "Cache usage is unmetered";
 }
 
 function cacheInput(record: UsageRecord) {
@@ -326,9 +340,7 @@ async function parseSession(file: string): Promise<ParsedSession> {
     const rawTimestamp = message.timestamp ?? entry.timestamp;
     const timestamp = validTimestamp(rawTimestamp);
     const timestampMs = timestamp ? new Date(timestamp).getTime() : undefined;
-    const cacheWriteReported =
-      typeof message.usage?.cacheWrite === "number" &&
-      Number.isFinite(message.usage.cacheWrite);
+    const cacheWriteReported = message.usage?.cacheWriteReported === true;
     const day = /^\d{4}-\d{2}-\d{2}/.exec(timestamp)?.[0] ?? "unknown";
     const stableId =
       typeof entry.id === "string"
@@ -341,7 +353,6 @@ async function parseSession(file: string): Promise<ParsedSession> {
             value.reasoning,
             value.cacheRead,
             value.cacheWrite,
-            cacheWriteReported,
             value.totalTokens,
             value.cost,
           ])}`
@@ -383,7 +394,7 @@ export async function collectStats(root: string): Promise<PiStats> {
   const byProvider = new Map<string, UsageTotals>();
   const byProject = new Map<string, UsageTotals>();
   const byDay = new Map<string, UsageTotals>();
-  const seen = new Set<string>();
+  const seen = new Map<string, UsageRecord>();
   let meteredRequests = 0;
   let cacheWriteReports = 0;
   const sessions = await Promise.all(files.map(parseSession));
@@ -398,8 +409,15 @@ export async function collectStats(root: string): Promise<PiStats> {
 
   for (const session of sessions) {
     for (const record of session.records) {
-      if (seen.has(record.stableId)) continue;
-      seen.add(record.stableId);
+      const existing = seen.get(record.stableId);
+      if (existing) {
+        if (!existing.cacheWriteReported && record.cacheWriteReported) {
+          existing.cacheWriteReported = true;
+          if (cacheInput(existing) > 0) cacheWriteReports += 1;
+        }
+        continue;
+      }
+      seen.set(record.stableId, record);
       if (cacheInput(record) > 0) {
         meteredRequests += 1;
         if (record.cacheWriteReported) cacheWriteReports += 1;
@@ -448,20 +466,12 @@ export function formatSummary(stats: PiStats) {
     stats.totals.requests > 0
       ? (stats.totals.errors / stats.totals.requests) * 100
       : 0;
-  const cacheWriteSummary =
-    stats.cacheWriteStatus === "reported"
-      ? `${stats.totals.cacheWrite.toLocaleString()} cache-write tokens reported`
-      : stats.cacheWriteStatus === "not-reported"
-        ? "Cache writes not reported by recorded providers"
-        : stats.cacheWriteStatus === "none-recorded"
-          ? "No cache writes recorded"
-          : "Cache usage is unmetered";
   return [
     `${stats.totals.requests.toLocaleString()} requests across ${stats.sessionFiles.toLocaleString()} session files`,
     `$${stats.totals.cost.toFixed(2)} total cost`,
     `${stats.totals.totalTokens.toLocaleString()} tokens (${stats.totals.output.toLocaleString()} output, ${stats.totals.reasoning.toLocaleString()} reasoning)`,
     `${cacheRate.toFixed(1)}% cache reuse`,
-    cacheWriteSummary,
+    cacheWriteSummary(stats.totals.cacheWrite, stats.cacheWriteStatus),
     `${errorRate.toFixed(1)}% errors`,
     stats.malformedLines > 0
       ? `${stats.malformedLines} malformed JSONL lines skipped`

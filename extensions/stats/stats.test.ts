@@ -8,7 +8,12 @@ import { collectStats, formatSummary } from "./src/stats.ts";
 const message = (
   id: string,
   timestamp: string,
-  usage: { input: number; cacheRead: number; cacheWrite?: number },
+  usage: {
+    input: number;
+    cacheRead: number;
+    cacheWrite?: number;
+    cacheWriteReported?: boolean;
+  },
   provider = "openai-codex",
   model = "gpt-test",
 ) =>
@@ -28,6 +33,9 @@ const message = (
         ...(usage.cacheWrite === undefined
           ? {}
           : { cacheWrite: usage.cacheWrite }),
+        ...(usage.cacheWriteReported === undefined
+          ? {}
+          : { cacheWriteReported: usage.cacheWriteReported }),
         totalTokens:
           usage.input + usage.cacheRead + (usage.cacheWrite ?? 0) + 1,
         cost: { total: 0 },
@@ -72,6 +80,7 @@ test("attributes forked usage to its origin and tolerates malformed timestamps",
           reasoning: 5,
           cacheRead: 80,
           cacheWrite: 0,
+          cacheWriteReported: true,
           totalTokens: 205,
           cost: { total: 0.25 },
         },
@@ -176,7 +185,12 @@ test("separates cold and mid-session misses without inventing cache writes", asy
       message(
         "b2",
         "2026-08-08T10:00:02.000Z",
-        { input: 10, cacheRead: 0, cacheWrite: 100 },
+        {
+          input: 10,
+          cacheRead: 0,
+          cacheWrite: 100,
+          cacheWriteReported: true,
+        },
         "anthropic",
         "claude-test",
       ),
@@ -219,6 +233,52 @@ test("separates cold and mid-session misses without inventing cache writes", asy
     "not-reported",
   );
   assert.equal(stats.cacheWriteStatus, "not-reported");
+  assert.match(
+    formatSummary(stats),
+    /100 cache-write tokens reported; additional writes not reported/,
+  );
+});
+
+test("uses persisted provenance instead of normalized cache-write zero", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "pi-stats-provenance-test-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(
+    join(root, "session.jsonl"),
+    [
+      message(
+        "normalized-zero",
+        "2026-08-08T09:00:01.000Z",
+        { input: 20, cacheRead: 80, cacheWrite: 0 },
+        "google",
+        "gemini-test",
+      ),
+      message(
+        "reported-zero",
+        "2026-08-08T09:00:02.000Z",
+        {
+          input: 20,
+          cacheRead: 80,
+          cacheWrite: 0,
+          cacheWriteReported: true,
+        },
+        "anthropic",
+        "claude-test",
+      ),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+
+  const stats = await collectStats(root);
+  assert.equal(
+    stats.byProviderModel.find((item) => item.provider === "google")
+      ?.cacheWriteStatus,
+    "not-reported",
+  );
+  assert.equal(
+    stats.byProviderModel.find((item) => item.provider === "anthropic")
+      ?.cacheWriteStatus,
+    "none-recorded",
+  );
 });
 
 test("keeps trailing untimestamped usage in the recent window", async (context) => {

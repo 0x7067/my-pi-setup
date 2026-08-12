@@ -124,8 +124,8 @@ export function dashboardHtml() {
       return '<table><thead><tr><th>Name</th><th>Requests</th><th>Tokens</th><th>Cost</th></tr></thead><tbody>' + rows.map(row => '<tr><td title="' + esc(row.key) + '">' + esc(row.key) + '</td><td>' + number.format(row.requests) + '</td><td>' + number.format(row.totalTokens) + '</td><td>' + money.format(row.cost) + '</td></tr>').join('') + '</tbody></table>';
     }
     function cacheWrite(row) {
-      if (row.cacheWriteStatus === 'reported') return number.format(row.cacheWrite);
-      if (row.cacheWriteStatus === 'not-reported') return 'Not reported';
+      if (row.cacheWriteStatus === 'reported') return number.format(row.cacheWrite) + ' reported';
+      if (row.cacheWriteStatus === 'not-reported') return row.cacheWrite ? number.format(row.cacheWrite) + ' reported; additional writes not reported' : 'Not reported';
       if (row.cacheWriteStatus === 'none-recorded') return 'None recorded';
       return '—';
     }
@@ -150,7 +150,7 @@ export function dashboardHtml() {
       document.querySelector('#tokens').textContent = number.format(t.totalTokens);
       document.querySelector('#token-note').textContent = number.format(t.output) + ' output · ' + number.format(t.reasoning) + ' reasoning';
       document.querySelector('#cache').textContent = percent(reusable ? t.cacheRead / reusable : 0);
-      document.querySelector('#cache-note').textContent = 'Read ÷ reusable input · ' + (stats.cacheWriteStatus === 'reported' ? number.format(t.cacheWrite) + ' write tokens' : stats.cacheWriteStatus === 'not-reported' ? 'writes not reported' : stats.cacheWriteStatus === 'none-recorded' ? 'no cache writes recorded' : 'usage unmetered');
+      document.querySelector('#cache-note').textContent = 'Read ÷ reusable input · ' + (stats.cacheWriteStatus === 'reported' ? number.format(t.cacheWrite) + ' write tokens reported' : stats.cacheWriteStatus === 'not-reported' ? (t.cacheWrite ? number.format(t.cacheWrite) + ' write tokens reported; additional writes not reported' : 'writes not reported') : stats.cacheWriteStatus === 'none-recorded' ? 'no cache writes recorded' : 'usage unmetered');
       document.querySelector('#errors').textContent = percent(t.requests ? t.errors / t.requests : 0);
       document.querySelector('#errors').className = 'metric-value ' + (t.errors ? 'critical' : '');
       document.querySelector('#malformed').textContent = stats.malformedLines + ' malformed lines skipped';

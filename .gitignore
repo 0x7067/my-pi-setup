@@ -37,3 +37,4 @@ extensions/summaries/config.private.json.*.tmp
 # Local editor settings
 .vscode/
 .idea/
+.continuity/
