@@ -281,7 +281,7 @@ test("uses persisted provenance instead of normalized cache-write zero", async (
   );
 });
 
-test("records only cache writes proven by the finalized message", () => {
+test("preserves only cache-write provenance supplied by the finalized message", () => {
   const assistant = (cacheWrite: number, cacheWriteReported?: boolean) => ({
     role: "assistant" as const,
     content: [],
@@ -306,29 +306,118 @@ test("records only cache writes proven by the finalized message", () => {
     undefined,
   );
   const exact = assistant(0, true);
-  assert.equal(recordCacheWriteProvenance({ message: exact }), undefined);
+  const exactTransformed = recordCacheWriteProvenance({ message: exact });
+  assert.ok(exactTransformed);
   assert.equal(
-    JSON.parse(JSON.stringify(exact)).usage.cacheWriteReported,
+    JSON.parse(JSON.stringify(exactTransformed.message)).usage
+      .cacheWriteReported,
     true,
   );
 
   const explicitFalse = assistant(5, false);
+  const explicitFalseTransformed = recordCacheWriteProvenance({
+    message: explicitFalse,
+  });
+  assert.ok(explicitFalseTransformed);
   assert.equal(
-    recordCacheWriteProvenance({ message: explicitFalse }),
-    undefined,
-  );
-  assert.equal(
-    JSON.parse(JSON.stringify(explicitFalse)).usage.cacheWriteReported,
+    JSON.parse(JSON.stringify(explicitFalseTransformed.message)).usage
+      .cacheWriteReported,
     false,
   );
 
-  const transformed = recordCacheWriteProvenance({ message: assistant(5) });
-  assert.ok(transformed);
-  const persisted = JSON.parse(JSON.stringify(transformed.message)) as {
+  assert.equal(
+    recordCacheWriteProvenance({ message: assistant(5) }),
+    undefined,
+  );
+
+  const persisted = JSON.parse(
+    JSON.stringify(explicitFalseTransformed.message),
+  ) as {
     usage: { cacheWrite: number; cacheWriteReported?: boolean };
   };
   assert.equal(persisted.usage.cacheWrite, 5);
-  assert.equal(persisted.usage.cacheWriteReported, true);
+  assert.equal(persisted.usage.cacheWriteReported, false);
+});
+
+test("separates reported and unreported cache-write totals", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "pi-stats-cache-write-totals-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(
+    join(root, "session.jsonl"),
+    [
+      message(
+        "reported",
+        "2026-08-08T09:00:01.000Z",
+        { input: 20, cacheRead: 80, cacheWrite: 100, cacheWriteReported: true },
+        "provider",
+        "model",
+      ),
+      message(
+        "unknown",
+        "2026-08-08T09:00:02.000Z",
+        { input: 20, cacheRead: 80, cacheWrite: 7 },
+        "provider",
+        "model",
+      ),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+
+  const stats = await collectStats(root);
+  const providerModel = stats.byProviderModel[0];
+  assert.equal(stats.totals.cacheWrite, 107);
+  assert.equal(stats.totals.cacheWriteReported, 100);
+  assert.equal(stats.totals.cacheWriteUnreported, 7);
+  assert.equal(providerModel?.cacheWrite, 107);
+  assert.equal(providerModel?.cacheWriteReported, 100);
+  assert.equal(providerModel?.cacheWriteUnreported, 7);
+  assert.equal(providerModel?.cacheWriteStatus, "not-reported");
+  assert.equal(providerModel?.recentCacheReuse, 160 / 300);
+  assert.match(
+    formatSummary(stats),
+    /100 cache-write tokens reported; 7 cache-write tokens unreported/,
+  );
+});
+
+test("keeps output-only usage in recent request chronology", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "pi-stats-output-only-test-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const entries = [
+    JSON.stringify({
+      type: "session",
+      timestamp: "2026-08-08T09:00:00.000Z",
+      cwd: "/work/output-only",
+    }),
+    ...Array.from({ length: 20 }, (_, index) =>
+      message(
+        `hit-${index}`,
+        `2026-08-08T09:00:${String(index + 1).padStart(2, "0")}.000Z`,
+        { input: 10, cacheRead: 90 },
+      ),
+    ),
+    JSON.stringify({
+      type: "message",
+      id: "output-only",
+      message: {
+        role: "assistant",
+        provider: "openai-codex",
+        model: "gpt-test",
+        stopReason: "stop",
+        usage: { output: 5, totalTokens: 5, cost: { total: 0 } },
+      },
+    }),
+  ];
+  await writeFile(
+    join(root, "session.jsonl"),
+    `${entries.join("\n")}\n`,
+    "utf8",
+  );
+
+  const stats = await collectStats(root);
+  const providerModel = stats.byProviderModel[0];
+  assert.equal(providerModel?.recentRequests, 20);
+  assert.equal(providerModel?.recentCacheMisses, 0);
+  assert.equal(providerModel?.recentCacheReuse, 1710 / 1900);
 });
 
 test("keeps trailing untimestamped usage in the recent window", async (context) => {

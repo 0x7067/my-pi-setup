@@ -10,7 +10,6 @@ import { collectStats, formatSummary } from "./src/stats.ts";
 const noParameters = Type.Object({});
 
 type CacheWriteUsage = {
-  cacheWrite: number;
   cacheWriteReported?: boolean;
 };
 
@@ -18,17 +17,11 @@ export function recordCacheWriteProvenance(event: { message: AgentMessage }) {
   if (event.message.role !== "assistant") return;
   const usage = event.message.usage as typeof event.message.usage &
     CacheWriteUsage;
-  if (
-    typeof usage.cacheWriteReported === "boolean" ||
-    !Number.isFinite(usage.cacheWrite) ||
-    usage.cacheWrite <= 0
-  ) {
-    return;
-  }
+  if (typeof usage.cacheWriteReported !== "boolean") return;
   return {
     message: {
       ...event.message,
-      usage: { ...usage, cacheWriteReported: true },
+      usage: { ...usage, cacheWriteReported: usage.cacheWriteReported },
     },
   };
 }

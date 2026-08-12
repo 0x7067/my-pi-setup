@@ -11,6 +11,8 @@ export interface UsageTotals {
   reasoning: number;
   cacheRead: number;
   cacheWrite: number;
+  cacheWriteReported: number;
+  cacheWriteUnreported: number;
   totalTokens: number;
   cost: number;
 }
@@ -81,6 +83,7 @@ interface UsageRecord {
   sequence: number;
   timestamp: number | undefined;
   chronology: number;
+  hasUsage: boolean;
   cacheWriteReported: boolean;
   hadPriorMeteredUsage: boolean;
   project: string;
@@ -110,6 +113,8 @@ function emptyTotals(): UsageTotals {
     reasoning: 0,
     cacheRead: 0,
     cacheWrite: 0,
+    cacheWriteReported: 0,
+    cacheWriteUnreported: 0,
     totalTokens: 0,
     cost: 0,
   };
@@ -145,29 +150,36 @@ function sorted(map: Map<string, UsageTotals>, chronological = false) {
 
 function cacheWriteStatus(
   totals: UsageTotals,
-  meteredRequests: number,
+  usageRequests: number,
   cacheWriteReports: number,
 ): CacheWriteStatus {
-  if (meteredRequests === 0) return "unmetered";
-  if (cacheWriteReports < meteredRequests) return "not-reported";
-  return totals.cacheWrite > 0 ? "reported" : "none-recorded";
+  if (usageRequests === 0) return "unmetered";
+  if (cacheWriteReports < usageRequests) return "not-reported";
+  return totals.cacheWriteReported > 0 ? "reported" : "none-recorded";
 }
 
-function cacheWriteSummary(total: number, status: CacheWriteStatus) {
-  const reported = `${total.toLocaleString()} cache-write tokens reported`;
+function cacheWriteSummary(totals: UsageTotals, status: CacheWriteStatus) {
+  const reported = `${totals.cacheWriteReported.toLocaleString()} cache-write tokens reported`;
+  const unreported = `${totals.cacheWriteUnreported.toLocaleString()} cache-write tokens unreported`;
   if (status === "reported") return reported;
   if (status === "not-reported") {
-    return total > 0
-      ? `${reported}; additional writes not reported`
-      : "Cache writes not reported by recorded providers";
+    return totals.cacheWriteReported > 0
+      ? `${reported}; ${totals.cacheWriteUnreported > 0 ? unreported : "additional writes not reported"}`
+      : totals.cacheWriteUnreported > 0
+        ? unreported
+        : "Cache writes not reported by recorded providers";
   }
   return status === "none-recorded"
     ? "No cache writes recorded"
     : "Cache usage is unmetered";
 }
 
-function cacheInput(record: UsageRecord) {
-  return record.value.input + record.value.cacheRead + record.value.cacheWrite;
+function reusableInput(record: UsageRecord) {
+  return (
+    record.value.input +
+    record.value.cacheRead +
+    record.value.cacheWriteReported
+  );
 }
 
 function providerModelBreakdown(
@@ -177,14 +189,17 @@ function providerModelBreakdown(
   return [...totals.entries()]
     .map(([key, value]): ProviderModelBreakdown => {
       const modelRecords = records.get(key) ?? [];
-      const metered = modelRecords.filter((record) => cacheInput(record) > 0);
-      const misses = metered.filter((record) => record.value.cacheRead === 0);
+      const usageRecords = modelRecords.filter((record) => record.hasUsage);
+      const reusable = usageRecords.filter(
+        (record) => reusableInput(record) > 0,
+      );
+      const misses = reusable.filter((record) => record.value.cacheRead === 0);
       const coldStartMisses = misses.filter(
         (record) => !record.hadPriorMeteredUsage,
       ).length;
       const midSessionMisses = misses.length - coldStartMisses;
 
-      const recent = metered
+      const recent = usageRecords
         .sort(
           (left, right) =>
             left.chronology - right.chronology ||
@@ -201,7 +216,7 @@ function providerModelBreakdown(
         0,
       );
       const recentCacheWrite = recent.reduce(
-        (sum, record) => sum + record.value.cacheWrite,
+        (sum, record) => sum + record.value.cacheWriteReported,
         0,
       );
       const recentReusable = recentInput + recentCacheRead + recentCacheWrite;
@@ -211,21 +226,21 @@ function providerModelBreakdown(
         provider,
         model,
         ...value,
-        meteredRequests: metered.length,
-        cacheHits: metered.filter((record) => record.value.cacheRead > 0)
+        meteredRequests: usageRecords.length,
+        cacheHits: reusable.filter((record) => record.value.cacheRead > 0)
           .length,
         coldStartMisses,
         midSessionMisses,
         recentRequests: recent.length,
         recentCacheMisses: recent.filter(
-          (record) => record.value.cacheRead === 0,
+          (record) => reusableInput(record) > 0 && record.value.cacheRead === 0,
         ).length,
         recentCacheReuse:
           recentReusable > 0 ? recentCacheRead / recentReusable : null,
         cacheWriteStatus: cacheWriteStatus(
           value,
-          metered.length,
-          metered.filter((record) => record.cacheWriteReported).length,
+          usageRecords.length,
+          usageRecords.filter((record) => record.cacheWriteReported).length,
         ),
       };
     })
@@ -269,20 +284,24 @@ async function sessionFiles(root: string) {
 function messageTotals(entry: SessionEntry): UsageTotals | undefined {
   const message = entry.message;
   if (entry.type !== "message" || message?.role !== "assistant") return;
-  const usage = message.usage ?? {};
+  const usage = message.usage;
+  const cacheWrite = number(usage?.cacheWrite);
+  const cacheWriteReported = usage?.cacheWriteReported === true;
   return {
     requests: 1,
     errors:
       message.stopReason === "error" || typeof message.errorMessage === "string"
         ? 1
         : 0,
-    input: number(usage.input),
-    output: number(usage.output),
-    reasoning: number(usage.reasoning),
-    cacheRead: number(usage.cacheRead),
-    cacheWrite: number(usage.cacheWrite),
-    totalTokens: number(usage.totalTokens),
-    cost: number(usage.cost?.total),
+    input: number(usage?.input),
+    output: number(usage?.output),
+    reasoning: number(usage?.reasoning),
+    cacheRead: number(usage?.cacheRead),
+    cacheWrite,
+    cacheWriteReported: cacheWriteReported ? cacheWrite : 0,
+    cacheWriteUnreported: cacheWriteReported ? 0 : cacheWrite,
+    totalTokens: number(usage?.totalTokens),
+    cost: number(usage?.cost?.total),
   };
 }
 
@@ -353,6 +372,7 @@ async function parseSession(file: string): Promise<ParsedSession> {
       sequence: lineNumber,
       timestamp: timestampMs,
       chronology: 0,
+      hasUsage: message.usage !== undefined && message.usage !== null,
       cacheWriteReported,
       hadPriorMeteredUsage: false,
       project,
@@ -367,14 +387,11 @@ async function parseSession(file: string): Promise<ParsedSession> {
   const fallbackTimestamp = Number.isFinite(startedAt) ? startedAt : 0;
   const meteredProviderModels = new Set<string>();
   for (const record of records) {
-    chronology = Math.max(
-      chronology,
-      record.timestamp ?? fallbackTimestamp,
-    );
+    chronology = Math.max(chronology, record.timestamp ?? fallbackTimestamp);
     record.chronology = chronology;
     const providerModel = JSON.stringify([record.provider, record.model]);
     record.hadPriorMeteredUsage = meteredProviderModels.has(providerModel);
-    if (cacheInput(record) > 0) meteredProviderModels.add(providerModel);
+    if (reusableInput(record) > 0) meteredProviderModels.add(providerModel);
   }
 
   return { file, startedAt, malformedLines, records };
@@ -390,7 +407,8 @@ export async function collectStats(root: string): Promise<PiStats> {
   const byProject = new Map<string, UsageTotals>();
   const byDay = new Map<string, UsageTotals>();
   const seen = new Map<string, UsageRecord>();
-  let meteredRequests = 0;
+  const retained: UsageRecord[] = [];
+  let usageRequests = 0;
   let cacheWriteReports = 0;
   const sessions = await Promise.all(files.map(parseSession));
   sessions.sort(
@@ -406,29 +424,32 @@ export async function collectStats(root: string): Promise<PiStats> {
     for (const record of session.records) {
       const existing = seen.get(record.stableId);
       if (existing) {
+        if (!existing.hasUsage && record.hasUsage) existing.hasUsage = true;
         if (!existing.cacheWriteReported && record.cacheWriteReported) {
           existing.cacheWriteReported = true;
-          if (cacheInput(existing) > 0) cacheWriteReports += 1;
+          existing.value.cacheWriteReported = existing.value.cacheWrite;
+          existing.value.cacheWriteUnreported = 0;
         }
         continue;
       }
       seen.set(record.stableId, record);
-      if (cacheInput(record) > 0) {
-        meteredRequests += 1;
-        if (record.cacheWriteReported) cacheWriteReports += 1;
-      }
-      add(totals, record.value);
-      breakdown(byModel, record.model, record.value);
-      const providerModelKey = JSON.stringify([record.provider, record.model]);
-      breakdown(byProviderModel, providerModelKey, record.value);
-      const diagnosticRecords =
-        providerModelRecords.get(providerModelKey) ?? [];
-      diagnosticRecords.push(record);
-      providerModelRecords.set(providerModelKey, diagnosticRecords);
-      breakdown(byProvider, record.provider, record.value);
-      breakdown(byProject, record.project, record.value);
-      breakdown(byDay, record.day, record.value);
+      retained.push(record);
     }
+  }
+
+  for (const record of retained) {
+    if (record.hasUsage) usageRequests += 1;
+    if (record.hasUsage && record.cacheWriteReported) cacheWriteReports += 1;
+    add(totals, record.value);
+    breakdown(byModel, record.model, record.value);
+    const providerModelKey = JSON.stringify([record.provider, record.model]);
+    breakdown(byProviderModel, providerModelKey, record.value);
+    const diagnosticRecords = providerModelRecords.get(providerModelKey) ?? [];
+    diagnosticRecords.push(record);
+    providerModelRecords.set(providerModelKey, diagnosticRecords);
+    breakdown(byProvider, record.provider, record.value);
+    breakdown(byProject, record.project, record.value);
+    breakdown(byDay, record.day, record.value);
   }
 
   return {
@@ -438,7 +459,7 @@ export async function collectStats(root: string): Promise<PiStats> {
     totals,
     cacheWriteStatus: cacheWriteStatus(
       totals,
-      meteredRequests,
+      usageRequests,
       cacheWriteReports,
     ),
     byModel: sorted(byModel),
@@ -454,7 +475,9 @@ export async function collectStats(root: string): Promise<PiStats> {
 
 export function formatSummary(stats: PiStats) {
   const reusable =
-    stats.totals.input + stats.totals.cacheRead + stats.totals.cacheWrite;
+    stats.totals.input +
+    stats.totals.cacheRead +
+    stats.totals.cacheWriteReported;
   const cacheRate =
     reusable > 0 ? (stats.totals.cacheRead / reusable) * 100 : 0;
   const errorRate =
@@ -466,7 +489,7 @@ export function formatSummary(stats: PiStats) {
     `$${stats.totals.cost.toFixed(2)} total cost`,
     `${stats.totals.totalTokens.toLocaleString()} tokens (${stats.totals.output.toLocaleString()} output, ${stats.totals.reasoning.toLocaleString()} reasoning)`,
     `${cacheRate.toFixed(1)}% cache reuse`,
-    cacheWriteSummary(stats.totals.cacheWrite, stats.cacheWriteStatus),
+    cacheWriteSummary(stats.totals, stats.cacheWriteStatus),
     `${errorRate.toFixed(1)}% errors`,
     stats.malformedLines > 0
       ? `${stats.malformedLines} malformed JSONL lines skipped`
