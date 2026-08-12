@@ -228,6 +228,7 @@ test("Pi conversation identity and cache usage survive the provider boundary", a
   assert.equal(stats.byProvider[0]?.key, "devin");
   assert.equal(stats.totals.cacheRead, 80);
   assert.equal(stats.totals.cacheWrite, 5);
+  assert.equal(stats.byProviderModel[0]?.cacheWriteStatus, "reported");
   assert.equal(separate.content[0]?.type, "text");
 
   if (process.env.DEVIN_CACHE_EVIDENCE === "1") {

@@ -327,6 +327,30 @@ test("keeps trailing untimestamped usage in the recent window", async (context) 
   assert.equal(stats.byProviderModel[0]?.recentCacheMisses, 1);
 });
 
+test("keeps fork history when classifying a retained miss", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "pi-stats-fork-miss-test-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+
+  const shared = message("shared", "2026-08-08T09:00:01.000Z", {
+    input: 20,
+    cacheRead: 80,
+  });
+  await writeFile(join(root, "a-source.jsonl"), `${shared}\n`, "utf8");
+  await writeFile(
+    join(root, "b-fork.jsonl"),
+    `${shared}\n${message("fork-miss", "2026-08-08T09:00:02.000Z", {
+      input: 100,
+      cacheRead: 0,
+    })}\n`,
+    "utf8",
+  );
+
+  const stats = await collectStats(root);
+  assert.equal(stats.totals.requests, 2);
+  assert.equal(stats.byProviderModel[0]?.coldStartMisses, 0);
+  assert.equal(stats.byProviderModel[0]?.midSessionMisses, 1);
+});
+
 test("labels an archive with only unmetered responses as unmetered", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "pi-stats-unmetered-test-"));
   context.after(() => rm(root, { recursive: true, force: true }));

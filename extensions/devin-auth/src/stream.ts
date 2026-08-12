@@ -23,6 +23,10 @@ import {
 import { streamChatEvents, type CloudChatEvent } from "./cloud-direct/index.js";
 import { mapContextToChat } from "./context-map.js";
 
+type DevinAssistantMessage = Omit<AssistantMessage, "usage"> & {
+  usage: AssistantMessage["usage"] & { cacheWriteReported?: boolean };
+};
+
 /**
  * Stream a Devin/Cognition chat completion into pi's assistant-message
  * event stream.
@@ -43,7 +47,7 @@ export function streamDevin(
   // Drive the upstream async iterator inside an IIFE so the returned
   // stream is populated asynchronously.
   void (async () => {
-    const output: AssistantMessage = {
+    const output: DevinAssistantMessage = {
       role: "assistant",
       content: [],
       api: model.api,
@@ -266,6 +270,9 @@ export function streamDevin(
           output.usage.output = ev.completionTokens ?? 0;
           output.usage.cacheRead = ev.cachedInputTokens ?? 0;
           output.usage.cacheWrite = ev.cacheCreationInputTokens ?? 0;
+          if (ev.cacheCreationInputTokens !== undefined) {
+            output.usage.cacheWriteReported = true;
+          }
           output.usage.totalTokens =
             ev.totalTokens ?? output.usage.input + output.usage.output;
           // calculateCost mutates output.usage.cost in place.

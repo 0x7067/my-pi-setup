@@ -82,6 +82,7 @@ interface UsageRecord {
   timestamp: number | undefined;
   chronology: number;
   cacheWriteReported: boolean;
+  hadPriorMeteredUsage: boolean;
   project: string;
   model: string;
   provider: string;
@@ -177,22 +178,11 @@ function providerModelBreakdown(
     .map(([key, value]): ProviderModelBreakdown => {
       const modelRecords = records.get(key) ?? [];
       const metered = modelRecords.filter((record) => cacheInput(record) > 0);
-      const sessions = new Map<string, UsageRecord[]>();
-      for (const record of metered) {
-        const session = sessions.get(record.session) ?? [];
-        session.push(record);
-        sessions.set(record.session, session);
-      }
-
-      let coldStartMisses = 0;
-      let midSessionMisses = 0;
-      for (const session of sessions.values()) {
-        session.sort((left, right) => left.sequence - right.sequence);
-        if (session[0]?.value.cacheRead === 0) coldStartMisses += 1;
-        midSessionMisses += session
-          .slice(1)
-          .filter((record) => record.value.cacheRead === 0).length;
-      }
+      const misses = metered.filter((record) => record.value.cacheRead === 0);
+      const coldStartMisses = misses.filter(
+        (record) => !record.hadPriorMeteredUsage,
+      ).length;
+      const midSessionMisses = misses.length - coldStartMisses;
 
       const recent = metered
         .sort(
@@ -364,6 +354,7 @@ async function parseSession(file: string): Promise<ParsedSession> {
       timestamp: timestampMs,
       chronology: 0,
       cacheWriteReported,
+      hadPriorMeteredUsage: false,
       project,
       model,
       provider,
@@ -374,12 +365,16 @@ async function parseSession(file: string): Promise<ParsedSession> {
 
   let chronology = Number.NEGATIVE_INFINITY;
   const fallbackTimestamp = Number.isFinite(startedAt) ? startedAt : 0;
+  const meteredProviderModels = new Set<string>();
   for (const record of records) {
     chronology = Math.max(
       chronology,
       record.timestamp ?? fallbackTimestamp,
     );
     record.chronology = chronology;
+    const providerModel = JSON.stringify([record.provider, record.model]);
+    record.hadPriorMeteredUsage = meteredProviderModels.has(providerModel);
+    if (cacheInput(record) > 0) meteredProviderModels.add(providerModel);
   }
 
   return { file, startedAt, malformedLines, records };
