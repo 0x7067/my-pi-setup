@@ -391,7 +391,7 @@ try {
     contextWindow: 128000,
     maxTokens: 4096,
   });
-  const response = (id, cacheWriteField) => ({
+  const response = (id, cacheWriteField, cacheWriteFieldName = "cache_write_tokens") => ({
     id: `response-${id}`,
     object: "response",
     created_at: 0,
@@ -406,12 +406,12 @@ try {
         cached_tokens: 50,
         ...(cacheWriteField === undefined
           ? {}
-          : { cache_write_tokens: cacheWriteField }),
+          : { [cacheWriteFieldName]: cacheWriteField }),
       },
     },
   });
-  const runFallback = async (id, cacheWriteField) => {
-    const completed = response(id, cacheWriteField);
+  const runFallback = async (id, cacheWriteField, cacheWriteFieldName) => {
+    const completed = response(id, cacheWriteField, cacheWriteFieldName);
     const stream = streamOpenAIResponsesWithPhase2B(
       responseModel(id),
       {
@@ -434,7 +434,7 @@ try {
   const messages = [
     await runFallback("absent", undefined),
     await runFallback("zero", 0),
-    await runFallback("positive", 5),
+    await runFallback("positive", 5, "cache_creation_tokens"),
   ];
   await writeFile(
     join(statsRoot, "session.jsonl"),
@@ -454,6 +454,25 @@ try {
   assert.equal(status("absent"), "not-reported");
   assert.equal(status("zero"), "none-recorded");
   assert.equal(status("positive"), "reported");
+
+  const failedStream = streamOpenAIResponsesWithPhase2B(
+    responseModel("failure"),
+    {
+      messages: [{ role: "user", content: "test", timestamp: 0 }],
+      tools: [],
+    },
+    {
+      apiKey: "sk-test",
+      transport: "sse",
+      fetch: async () => {
+        throw new Error("fallback setup failed");
+      },
+    },
+  );
+  for await (const _event of failedStream) {}
+  const failed = await failedStream.result();
+  assert.equal(failed.stopReason, "error");
+  assert.equal(failed.errorMessage, "Connection error.");
 } finally {
   rmSync(statsRoot, { recursive: true, force: true });
 }

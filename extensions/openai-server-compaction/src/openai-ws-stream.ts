@@ -144,65 +144,14 @@ function extractCacheWriteUsage(response: ResponseObject) {
   return { tokens: 0, reported: false };
 }
 
-function responseReportsCacheWrite(body: string) {
-  for (const line of body.split(/\r?\n/)) {
-    const payload = line.startsWith("data:") ? line.slice(5).trim() : line;
-    if (!payload || payload === "[DONE]") continue;
-    try {
-      const event = JSON.parse(payload) as {
-        response?: { usage?: { input_tokens_details?: unknown } };
-        usage?: { input_tokens_details?: unknown };
-      };
-      const details =
-        event.response?.usage?.input_tokens_details ??
-        event.usage?.input_tokens_details;
-      if (!details || typeof details !== "object") continue;
-      const values = details as {
-        cache_creation_tokens?: unknown;
-        cache_write_tokens?: unknown;
-      };
-      if (
-        (typeof values.cache_creation_tokens === "number" &&
-          Number.isFinite(values.cache_creation_tokens)) ||
-        (typeof values.cache_write_tokens === "number" &&
-          Number.isFinite(values.cache_write_tokens))
-      ) {
-        return true;
-      }
-    } catch {
-      continue;
-    }
-  }
-  return false;
-}
-
 async function forwardOpenAIHttpStream(
   model: ResponsesModel,
   context: Context,
   options: SimpleStreamOptions | undefined,
   eventStream: AssistantMessageEventStreamLike,
 ) {
-  const upstreamFetch = options?.fetch ?? globalThis.fetch;
-  let cacheWriteReported = Promise.resolve(false);
-  const httpStream = streamSimpleOpenAIResponses(model, context, {
-    ...options,
-    fetch: async (input, init) => {
-      const response = await upstreamFetch(input, init);
-      cacheWriteReported = response
-        .clone()
-        .text()
-        .then(responseReportsCacheWrite, () => false);
-      return response;
-    },
-  });
+  const httpStream = streamSimpleOpenAIResponses(model, context, options);
   for await (const event of httpStream) {
-    if (
-      (event.type === "done" || event.type === "error") &&
-      (await cacheWriteReported)
-    ) {
-      const message = event.type === "done" ? event.message : event.error;
-      (message.usage as UsageWithCacheWriteProvenance).cacheWriteReported = true;
-    }
     eventStream.push(event);
   }
 }
@@ -212,11 +161,7 @@ export function streamOpenAIHttpResponsesWithProvenance(
   context: Context,
   options?: SimpleStreamOptions,
 ): AssistantMessageEventStream {
-  const eventStream = createEventStream();
-  queueMicrotask(() => {
-    void forwardOpenAIHttpStream(model, context, options, eventStream);
-  });
-  return eventStream;
+  return streamSimpleOpenAIResponses(model, context, options);
 }
 
 function resolveResponsesReasoning(
