@@ -16,8 +16,6 @@ models.json
 models-store.json
 *.sqlite
 *.sqlite-*
-pi-hermes-memory/*.db
-pi-hermes-memory/*.db-*
 extensions/summaries/config.private.json
 extensions/summaries/config.private.json.*.tmp
 
