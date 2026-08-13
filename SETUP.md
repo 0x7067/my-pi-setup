@@ -73,9 +73,9 @@ The token is stored at `~/.pi/agent/browser-relay.key` with private file
 permissions and is ignored by Git. Do not share it: a process with the token can
 control tabs attached by the Chrome extension.
 
-The separately installed `pi-agent-browser-native` package handles isolated
-browser sessions. Use the relay only when Pi needs a tab from your existing
-signed-in Chrome profile.
+The pinned `pi-agent-browser-native` package in `settings.json` handles
+isolated browser sessions. Use the relay only when Pi needs a tab from your
+existing signed-in Chrome profile.
 
 ## ai-memory
 
