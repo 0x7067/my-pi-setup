@@ -10,6 +10,7 @@ sessions/
 /workflows/
 pi-hermes-memory/
 projects-memory/
+backups/
 auth.json
 trust.json
 models.json
