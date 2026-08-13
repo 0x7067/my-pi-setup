@@ -3,12 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const agentDir = dirname(dirname(fileURLToPath(import.meta.url)));
-const privateTrees = [
-  "sessions",
-  "pi-hermes-memory",
-  "projects-memory",
-  "backups",
-];
+const privateTrees = ["sessions", "projects-memory", "backups"];
 const privateRootFiles = new Set([
   ".env",
   "auth.json",

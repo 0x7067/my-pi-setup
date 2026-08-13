@@ -1,7 +1,7 @@
 - for web research use hound: `web_search` to find sources, `web_fetch` to read pages and PDFs, `web_crawl` to map a site, `web_screenshot` when the rendered page matters
 - check `content_ok` before trusting fetched content. if hound reports an unbypassable anti-bot wall, switch sources instead of retrying the same url
 
-- when `@ff-labs/pi-fff` is installed and loaded in the current session, prefer `fffind` and `ffgrep` over `fd`/`find` and `rg`/`grep` for file and content search. they are pre-indexed, SIMD-accelerated, frecency-ranked, and significantly faster. use `fd`/`rg` only as a fallback when FFF is unavailable or for shell pipelines. continue using `pi-lens` tools (`ast_grep_search`, `lsp_navigation`, `symbol_search`) for definitions, references, and AST patterns
+- use `pi-lens` tools (`ast_grep_search`, `lsp_navigation`, `symbol_search`) for definitions, references, and AST patterns
 
 - run check/format/lint commands when your done making a change. if they don't exist, suggest making them for the project you're in
 - avoid explicit return types unless absolutely needed

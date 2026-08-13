@@ -16,8 +16,6 @@
     "index.ts",
     "redact.ts",
     "types/**/*.d.ts",
-    "../shared/multiplexer.ts",
-    "../shared/overlay.ts",
-    "../shared/thinking-colors.ts"
+    "../shared/multiplexer.ts"
   ]
 }

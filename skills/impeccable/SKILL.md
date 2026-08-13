@@ -75,9 +75,9 @@ Routing:
 
 After init writes PRODUCT.md, resume without rerunning `context.mjs`; init loads the native platform reference itself when the platform it recorded is `ios`, `android`, or `adaptive`.
 
-**Pin / Unpin:** `node .pi/skills/impeccable/scripts/pin.mjs <pin|unpin> <command>` creates or removes a standalone `/<command>` shortcut. Report the script's result concisely; relay stderr verbatim on error.
+**Pin / Unpin: unavailable in this install.** `scripts/pin.mjs` only writes into `<projectRoot>/<harness>/skills`, and this copy is installed user-level under `~/.pi/agent/skills/impeccable`, so no harness directory ever resolves and the script exits with "No harness directories with impeccable installed found." Do not offer pinned `/<command>` shortcuts; invoke commands through `/impeccable <command>`.
 
-**Hooks:** `/impeccable hooks <on|off|status|ignore-rule|ignore-file|ignore-value|reset>` manages the design detector hook for this project (auto-runs the detector after UI file edits and surfaces findings). Load [reference/hooks.md](reference/hooks.md) when the user invokes it with any argument.
+**Hooks: unavailable in this install.** `scripts/hook-admin.mjs` ships providers for `.claude`, `.agents`, `.cursor`, and `.github` only, with no Pi provider, so `hooks` has nothing to install and [reference/hooks.md](reference/hooks.md) does not list Pi as a supported harness. Do not offer automatic detector runs after UI file edits.
 
 **Doctor:** `/impeccable doctor` reports and repairs drift between this project's Impeccable artifacts (PRODUCT.md, DESIGN.md and its sidecar, config, surface briefs, the hook) and what this version reads. Load [reference/doctor.md](reference/doctor.md) when the user invokes it, or when they ask what is out of date, stale, or needs refreshing. A `CONTEXT_STALE` directive in Setup's output is the cheap subset of the same report; act on it there per its own instructions rather than running doctor unasked.
 

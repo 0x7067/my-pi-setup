@@ -125,12 +125,7 @@ await expectMode(".", 0o700);
 await expectMode(".env", 0o600);
 await expectMode("auth.json", 0o600);
 await expectMode("models-store.json", 0o600);
-for (const path of [
-  "sessions",
-  "pi-hermes-memory",
-  "projects-memory",
-  "backups",
-]) {
+for (const path of ["sessions", "projects-memory", "backups"]) {
   await expectMode(path, 0o700);
 }
 
