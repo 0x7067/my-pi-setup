@@ -240,9 +240,9 @@ export async function showChangedFiles(
         const right = top ? "┐" : "┘";
         const remaining = Math.max(0, width - visibleWidth(content) - 3);
         return truncateToWidth(
-          theme.fg("borderMuted", `${left}─`) +
+          theme.fg("borderAccent", `${left}─`) +
             content +
-            theme.fg("borderMuted", `${"─".repeat(remaining)}${right}`),
+            theme.fg("borderAccent", `${"─".repeat(remaining)}${right}`),
           width,
           "",
         );
@@ -381,12 +381,6 @@ export async function showChangedFiles(
             }
 
             sidebar = padToWidth(sidebar, sidebarWidth);
-            if (isSelected) {
-              sidebar = theme.bg(
-                focus === "files" ? "selectedBg" : "customMessageBg",
-                sidebar,
-              );
-            }
           } else {
             sidebar = " ".repeat(sidebarWidth);
           }

@@ -19,7 +19,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { Cause, Effect, Exit } from "effect";
 import { Type, type Static } from "typebox";
-import { highlightRow, renderActionHints } from "../shared/tui-style.ts";
+import { renderActionHints } from "../shared/tui-style.ts";
 import {
   ASK_USER_PARAMETER_DESCRIPTIONS,
   ASK_USER_PROMPT_GUIDELINES,
@@ -263,12 +263,10 @@ export default function askUser(pi: ExtensionAPI) {
 
             const title = " Question ";
             add(
-              theme.fg("border", "─") +
-                theme.fg("accent", title) +
-                theme.fg(
-                  "border",
-                  "─".repeat(Math.max(0, width - title.length - 1)),
-                ),
+              theme.fg(
+                "accent",
+                `─${title}${"─".repeat(Math.max(0, width - title.length - 1))}`,
+              ),
             );
             for (const line of wrapText(
               params.question,
@@ -285,20 +283,14 @@ export default function askUser(pi: ExtensionAPI) {
               const marker = opt.isOther ? "✎" : `${i + 1}.`;
               const label = `${marker} ${opt.label}`;
 
-              const optionLine =
-                prefix +
-                theme.fg(opt.isOther && !editMode ? "muted" : "text", label);
-              add(highlightRow(theme, optionLine, width, selected));
+              if (selected || (opt.isOther && editMode)) {
+                add(prefix + theme.fg("accent", label));
+              } else {
+                add(prefix + theme.fg(opt.isOther ? "muted" : "text", label));
+              }
 
               if (opt.description) {
-                add(
-                  highlightRow(
-                    theme,
-                    `      ${theme.fg("muted", opt.description)}`,
-                    width,
-                    selected,
-                  ),
-                );
+                add(`      ${theme.fg("muted", opt.description)}`);
               }
             }
 
@@ -335,7 +327,7 @@ export default function askUser(pi: ExtensionAPI) {
                 ),
               );
             }
-            add(theme.fg("border", "─".repeat(width)));
+            add(theme.fg("accent", "─".repeat(width)));
 
             cachedLines = lines;
             return lines;

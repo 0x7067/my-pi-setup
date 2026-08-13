@@ -331,10 +331,12 @@ class TerminalDashboard implements Component {
       const index = start + i;
       const isSelected = index === this.selection.index;
 
-      // Left: marker, status square, title, dim id
-      const marker = isSelected ? theme.fg("accent", "❯") : " ";
-      const title = theme.fg("text", oneLine(snap.title));
-      const left = ` ${marker} ${statusGlyph(snap, theme)} ${title} ${theme.fg("dim", snap.id)}`;
+      // Left: emphasizing selection with stronger visual cue
+      const marker = isSelected
+        ? theme.bold(theme.fg("accent", "❯"))
+        : theme.fg("muted", "·");
+      const baseRow = `  ${marker} ${statusGlyph(snap, theme)} ${theme.fg("text", oneLine(snap.title))} ${theme.fg("dim", snap.id)}`;
+      const left = isSelected ? theme.bg("selectedBg", baseRow) : baseRow;
 
       // Right: pid · elapsed · exit/status
       const dot = theme.fg("dim", " · ");
@@ -351,14 +353,7 @@ class TerminalDashboard implements Component {
       const leftMax = Math.max(0, width - rightWidth - 2);
       const leftTruncated = truncateToWidth(left, leftMax);
       const gap = Math.max(2, width - visibleWidth(leftTruncated) - rightWidth);
-      out.push(
-        highlightRow(
-          theme,
-          leftTruncated + " ".repeat(gap) + right,
-          width,
-          isSelected,
-        ),
-      );
+      out.push(truncateToWidth(leftTruncated + " ".repeat(gap) + right, width));
     }
 
     if (start > 0) {

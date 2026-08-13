@@ -290,23 +290,27 @@ export default function uiCustomization(pi: ExtensionAPI) {
             ? `${modelInfo.provider}/${modelInfo.modelId} · ${modelInfo.thinking}`
             : modelInfo.modelId;
 
-          const lines = [
-            columns(directory, theme.fg("muted", model), width),
-            columns(theme.fg("muted", usage), theme.fg("muted", git), width),
-          ];
-
-          // Extension statuses render after the two dashboard lines, one per row.
+          // Keep the footer at the same two-row height as Pi's startup footer.
+          // Extension statuses arrive asynchronously, so fold them into the
+          // telemetry row instead of adding rows that move the editor.
           const statuses = footerData.getExtensionStatuses();
-          const statusLines = Array.from(statuses.entries())
+          const statusText = Array.from(statuses.entries())
             .sort(([a], [b]) => a.localeCompare(b))
-            .flatMap(([, text]) => text.split("\n"));
-          for (const statusLine of statusLines) {
-            lines.push(
-              truncateToWidth(statusLine, width, theme.fg("dim", "...")),
-            );
-          }
+            .flatMap(([, text]) => text.split("\n"))
+            .filter(Boolean)
+            .join(theme.fg("dim", " · "));
+          const telemetry = statusText
+            ? `${usage}${theme.fg("dim", " · ")}${statusText}`
+            : usage;
 
-          return lines;
+          return [
+            columns(directory, theme.fg("muted", model), width),
+            columns(
+              theme.fg("muted", telemetry),
+              theme.fg("muted", git),
+              width,
+            ),
+          ];
         },
       };
     });

@@ -51,8 +51,33 @@ parse-file report.pdf                pages={start: 3, end: 7}
 /private-image status    # mode, worker health, models
 ```
 
-The mode is branch-local session state: it survives reload/resume, follows
-the branch when forked, and every genuinely new session defaults to Luna.
+Three ways to reach the same toggle, whichever is closest to hand:
+
+| Way | Does |
+| --- | --- |
+| `alt+o` | Flips the mode, same as bare `/private-image` |
+| `/ocr [on\|off\|status]` | Short alias, identical arguments |
+| `/private-image [on\|off\|status]` | The full name |
+
+While private mode is on, the footer shows a `private image` pill, so a session
+that must not call out is visible without asking. Luna shows nothing, being the
+documented default.
+
+The mode is branch-local session state: it survives reload/resume and follows
+the branch when forked.
+
+The choice is also sticky. Every mode change writes `<agent>/config/custom-ocr`
+— the same convention the calm extension uses for its preference — and that
+file decides which mode a genuinely new session starts in. So `/private-image
+on` once leaves private mode on from then on, and `/private-image off` returns
+to Luna. Set it by hand with `echo private > ~/.pi/agent/config/custom-ocr`.
+
+A missing file, unreadable file, or unrecognized contents all mean Luna, so a
+fresh install behaves as before and a corrupted preference fails safe rather
+than silently sending pages to a backend you did not choose. Point
+`CUSTOM_OCR_CONFIG_OVERRIDE` elsewhere to relocate the file.
+
+Within a session, `/private-image` still overrides whatever the file says.
 
 ### One-time setup for private mode
 

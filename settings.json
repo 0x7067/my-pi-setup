@@ -13,7 +13,8 @@
     "npm:pi-lens@3.8.74",
     "../../.hound/pi-extension",
     "npm:@aliou/pi-synthetic@0.24.3",
-    "npm:pi-agent-browser-native@0.3.0"
+    "npm:deepseek-peak-pricing-hours",
+    "npm:@53able/pi-agent-browser@0.6.1"
   ],
   "treeFilterMode": "default",
   "compaction": {

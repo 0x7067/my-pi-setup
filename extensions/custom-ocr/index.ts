@@ -11,7 +11,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Type, type Static } from "typebox";
 import {
@@ -25,6 +25,9 @@ import { parseWithLuna, LUNA_MODEL_ID, LUNA_PROVIDER } from "./src/luna.ts";
 import {
   MODE_ENTRY_TYPE,
   parsePrivateImageArgs,
+  persistDefaultMode,
+  preferencePath,
+  readDefaultMode,
   readModeFromBranch,
   type OcrMode,
 } from "./src/mode.ts";
@@ -84,9 +87,11 @@ export interface ParseFileDetails {
 }
 
 export default function customOcr(pi: ExtensionAPI) {
-  const pythonDir = join(dirname(fileURLToPath(import.meta.url)), "python");
+  const extensionDir = dirname(fileURLToPath(import.meta.url));
+  const pythonDir = join(extensionDir, "python");
+  const modePreferencePath = preferencePath(resolve(extensionDir, "../.."));
 
-  let mode: OcrMode = "luna";
+  let mode: OcrMode = readDefaultMode(modePreferencePath);
   let runtime: OcrRuntime | undefined;
   let manager: PrivateWorkerManager | undefined;
 
@@ -96,11 +101,29 @@ export default function customOcr(pi: ExtensionAPI) {
   function setMode(next: OcrMode) {
     mode = next;
     pi.appendEntry(MODE_ENTRY_TYPE, { mode: next });
+    // Sticky: the mode chosen here is also the one new sessions start in.
+    persistDefaultMode(modePreferencePath, next);
+  }
+
+  /**
+   * Show the footer pill only in private mode. Luna is the documented default,
+   * so the pill means "this session is not calling out", which is the state
+   * worth seeing at a glance.
+   */
+  function updateStatus(ctx: ExtensionContext) {
+    ctx.ui.setStatus(
+      "custom-ocr",
+      mode === "private" ? "private image" : undefined,
+    );
   }
 
   function restoreMode(ctx: ExtensionContext) {
-    mode = readModeFromBranch(ctx.sessionManager.getBranch());
+    mode = readModeFromBranch(
+      ctx.sessionManager.getBranch(),
+      readDefaultMode(modePreferencePath),
+    );
     if (mode === "luna") manager?.stopAll();
+    updateStatus(ctx);
   }
 
   pi.on("session_start", async (_event, ctx) => {
@@ -119,16 +142,16 @@ export default function customOcr(pi: ExtensionAPI) {
     await closing?.dispose();
   });
 
-  pi.registerCommand("private-image", {
+  const commandOptions = {
     description:
       "Toggle fully local, fail-closed parsing for parse-file (on/off/status)",
-    getArgumentCompletions: (prefix) => {
+    getArgumentCompletions: (prefix: string) => {
       const items = ["on", "off", "status"]
         .filter((value) => value.startsWith(prefix))
         .map((value) => ({ value, label: value }));
       return items.length > 0 ? items : null;
     },
-    handler: async (args, ctx) => {
+    handler: async (args: string | undefined, ctx: ExtensionContext) => {
       const action = parsePrivateImageArgs(args, mode);
 
       if (action.action === "error") {
@@ -169,6 +192,7 @@ export default function customOcr(pi: ExtensionAPI) {
           return;
         }
         setMode("private");
+        updateStatus(ctx);
         ctx.ui.notify(
           "Private image mode ON — parse-file now runs fully local (DeepSeek-OCR → Qwen) and never calls hosted models. Prewarming workers…",
           "info",
@@ -189,11 +213,21 @@ export default function customOcr(pi: ExtensionAPI) {
 
       setMode("luna");
       manager?.stopAll();
+      updateStatus(ctx);
       ctx.ui.notify(
         "Private image mode OFF — parse-file uses GPT-5.6 Luna again. Local workers were unloaded.",
         "info",
       );
     },
+  };
+
+  // Three ways to reach the same toggle: the full name, a short alias, and a
+  // key. Bare `/private-image`, `/ocr` and alt+o all flip the mode.
+  pi.registerCommand("private-image", commandOptions);
+  pi.registerCommand("ocr", commandOptions);
+  pi.registerShortcut("alt+o", {
+    description: "Toggle private (local) image parsing",
+    handler: (ctx) => commandOptions.handler(undefined, ctx),
   });
 
   pi.registerTool<typeof parseFileParameters, ParseFileDetails>({

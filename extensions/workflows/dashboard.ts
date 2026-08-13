@@ -813,27 +813,33 @@ export class WorkflowDashboard {
       Math.floor(width / 3),
     );
     const sidebarInner = sidebarWidth - 2;
+    // Emphasize active phase with background and stronger marker
     const phaseWindow = this.windowed(groups, this.phaseIndex, bodyHeight);
     const phaseRows = phaseWindow.items.map((group, i) => {
       const index = phaseWindow.offset + i;
-      const selected = index === this.phaseIndex;
-      const marker = selected
-        ? theme.fg(this.detailFocus === "phases" ? "accent" : "muted", "❯")
-        : " ";
-      const groupDone = group.agents.filter(
-        (a) => a.state !== "running",
-      ).length;
-      const square = groupSquare(group, theme);
-      const title = theme.fg("text", group.title);
+      const isSelectedPhase = index === this.phaseIndex;
+      const isSelectedPhasePane =
+        isSelectedPhase && this.detailFocus === "phases";
+      const markerWidth = 2;
+      const baseRow = `  ${theme.fg(isSelectedPhasePane ? "accent" : "muted", "❯")} ${groupSquare(group, theme)} ${theme.fg("text", group.title)}`;
       const counts =
         group.agents.length > 0
-          ? theme.fg("dim", `${groupDone}/${group.agents.length} `)
+          ? theme.fg(
+              "dim",
+              `${group.agents.filter((a) => a.state !== "running").length}/${group.agents.length} `,
+            )
           : theme.fg("dim", "- ");
-      return highlightRow(
-        theme,
-        this.split(` ${marker} ${square} ${title}`, counts, sidebarInner),
+      if (isSelectedPhasePane) {
+        return theme.bg(
+          "selectedBg",
+          this.split(baseRow, counts, sidebarInner),
+        );
+      }
+      const baseWithCounts = this.split(baseRow, counts, sidebarInner);
+      const rowWithGap = `  ${theme.fg("dim", "·")} ${baseWithCounts.substring(2)}`;
+      return truncateToWidth(
+        rowWithGap.substring(0, sidebarInner),
         sidebarInner,
-        selected && this.detailFocus === "phases",
       );
     });
 
@@ -853,31 +859,47 @@ export class WorkflowDashboard {
       );
       for (const [visibleIndex, agent] of agentWindow.items.entries()) {
         const index = agentWindow.offset + visibleIndex;
-        const selected = index === this.agentIndex;
-        const marker =
-          selected && this.detailFocus === "agents"
-            ? theme.fg("accent", "❯")
-            : " ";
-        const stats = [agent.model, agentContext(agent)]
-          .filter(Boolean)
-          .join(" · ");
-        const label = theme.fg(
-          "text",
-          agent.label.padEnd(Math.min(maxLabel, 40)),
-        );
-        const left = ` ${marker} ${stateSquare(agent.state, theme)} ${label}  ${theme.fg("dim", stats)}`;
+        const isSelectedAgent = index === this.agentIndex;
+        const isSelectedAgentPane =
+          isSelectedAgent && this.detailFocus === "agents";
+        const baseRow = `  ${theme.fg(isSelectedAgentPane ? "accent" : "muted", "❯")} ${stateSquare(agent.state, theme)} ${agent.label.padEnd(Math.min(maxLabel, 40))}  ${theme.fg("dim", [agent.model, agentContext(agent)].filter(Boolean).join(" · "))}`;
         const right = theme.fg(
           "dim",
           `${formatElapsed(agent.startedAt, agent.finishedAt)} `,
         );
-        agentRows.push(
-          highlightRow(
-            theme,
-            this.split(left, right, agentsInner),
-            agentsInner,
-            selected && this.detailFocus === "agents",
-          ),
+        const rightWidth = visibleWidth(right);
+        const maxRightVisible = Math.max(
+          0,
+          agentsInner - visibleWidth(baseRow) - 2,
         );
+        const rightTruncated = truncateToWidth(right, maxRightVisible);
+        const agentRow = isSelectedAgentPane
+          ? theme.bg(
+              "selectedBg",
+              baseRow +
+                " ".repeat(
+                  agentsInner -
+                    visibleWidth(baseRow) -
+                    visibleWidth(rightTruncated) -
+                    1,
+                ) +
+                rightTruncated,
+            )
+          : truncateToWidth(
+              baseRow.substring(2) +
+                " ".repeat(
+                  Math.max(
+                    1,
+                    agentsInner -
+                      visibleWidth(baseRow.substring(2)) +
+                      2 -
+                      visibleWidth(right),
+                  ),
+                ) +
+                right,
+              agentsInner,
+            );
+        agentRows.push(truncateToWidth(agentRow, agentsInner));
         if (agent.error) {
           agentRows.push(
             truncateToWidth(

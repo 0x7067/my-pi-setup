@@ -11,7 +11,7 @@ This setup is intentionally opinionated. It:
 - adds an ask user tool, which lets the model ask multiple choice questions
 - adds first-class `fd` (file discovery) and `rg` (content search) tools
 - adds an authenticated relay for inspecting and controlling selected Chrome tabs
-- adds `pi-agent-browser-native` for isolated browser automation
+- adds `@53able/pi-agent-browser` for typed browser automation tools
 - adds a private local dashboard for Pi usage, cost, models, projects, and cache reuse
 - adds Pi Lens, ai-memory, run summaries, and Calm mode
 - uses Synthetic's vision-capable large model by default
