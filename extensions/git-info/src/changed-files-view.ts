@@ -7,6 +7,7 @@ import {
   visibleWidth,
 } from "@earendil-works/pi-tui";
 import { Effect } from "effect";
+import { renderActionHints } from "../../shared/tui-style.ts";
 import { runCommand } from "./process.ts";
 
 const DIFF_SCROLL_STEP = 5;
@@ -224,24 +225,26 @@ export async function showChangedFiles(
         if (expanded.startsWith("---") || expanded.startsWith("+++")) {
           return theme.fg("muted", expanded);
         }
-        if (expanded.startsWith("+")) return theme.fg("success", expanded);
-        if (expanded.startsWith("-")) return theme.fg("error", expanded);
+        if (expanded.startsWith("+")) {
+          return theme.fg("toolDiffAdded", expanded);
+        }
+        if (expanded.startsWith("-")) {
+          return theme.fg("toolDiffRemoved", expanded);
+        }
         if (expanded.startsWith("…")) return theme.fg("warning", expanded);
         return theme.fg("text", expanded);
       }
 
-      function border(width: number, label: string, top: boolean) {
+      function border(width: number, content: string, top: boolean) {
         const left = top ? "┌" : "└";
         const right = top ? "┐" : "┘";
-        const text = `─ ${label} `;
-        const remaining = Math.max(0, width - visibleWidth(text) - 2);
-        return theme.fg(
-          "borderAccent",
-          truncateToWidth(
-            `${left}${text}${"─".repeat(remaining)}${right}`,
-            width,
-            "",
-          ),
+        const remaining = Math.max(0, width - visibleWidth(content) - 3);
+        return truncateToWidth(
+          theme.fg("borderMuted", `${left}─`) +
+            content +
+            theme.fg("borderMuted", `${"─".repeat(remaining)}${right}`),
+          width,
+          "",
         );
       }
 
@@ -332,7 +335,11 @@ export async function showChangedFiles(
         );
         const diffWidth = Math.max(1, width - sidebarWidth - 3);
         const selectedFile = files[selectedIndex]!;
-        const title = `local changes · ${files.length} ${files.length === 1 ? "file" : "files"} · ${focus === "files" ? "FILES" : "DIFF"}`;
+        const title =
+          theme.fg(
+            "muted",
+            ` local changes · ${files.length} ${files.length === 1 ? "file" : "files"} · `,
+          ) + theme.fg("accent", `${focus.toUpperCase()} `);
         const lines = [border(width, title, true)];
 
         for (let row = 0; row < height; row += 1) {
@@ -343,7 +350,9 @@ export async function showChangedFiles(
           if (file) {
             const isSelected = fileIndex === selectedIndex;
             if (row % 2 === 0) {
-              const marker = isSelected ? "› " : "  ";
+              const marker = isSelected
+                ? theme.fg(focus === "files" ? "accent" : "muted", "› ")
+                : "  ";
               const isBinary =
                 file.additions === null || file.deletions === null;
               const stats = isBinary
@@ -351,7 +360,7 @@ export async function showChangedFiles(
                 : `+${file.additions} -${file.deletions}`;
               const styledStats = isBinary
                 ? theme.fg("success", stats)
-                : `${theme.fg("success", `+${file.additions}`)} ${theme.fg("error", `-${file.deletions}`)}`;
+                : `${theme.fg("toolDiffAdded", `+${file.additions}`)} ${theme.fg("toolDiffRemoved", `-${file.deletions}`)}`;
               const nameWidth = Math.max(
                 1,
                 sidebarWidth - visibleWidth(marker) - visibleWidth(stats) - 1,
@@ -398,9 +407,20 @@ export async function showChangedFiles(
 
         const help =
           focus === "files"
-            ? "j/k or ↑/↓ select · enter/space/l open diff · esc close"
-            : "j/k or ↑/↓ scroll · ctrl-d/u page · g/G top/bottom · esc/h files";
-        lines.push(border(width, help, false));
+            ? [
+                { key: "j/k · ↑/↓", label: "select" },
+                { key: "enter/space/l", label: "open diff" },
+                { key: "esc", label: "close" },
+              ]
+            : [
+                { key: "j/k · ↑/↓", label: "scroll" },
+                { key: "ctrl-d/u", label: "page" },
+                { key: "g/G", label: "top/bottom" },
+                { key: "esc/h", label: "files" },
+              ];
+        lines.push(
+          border(width, renderActionHints(theme, help, " ") + " ", false),
+        );
         return lines;
       }
 

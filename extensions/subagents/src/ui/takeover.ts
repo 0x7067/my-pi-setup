@@ -13,6 +13,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Component, Focusable, TUI } from "@earendil-works/pi-tui";
 import { Input, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { highlightRow, renderActionHints } from "../../../shared/tui-style.ts";
 import { formatElapsed, type SubagentSnapshot } from "../domain.ts";
 import { formatContextUtilization } from "../format.ts";
 import type { SubagentReadModel } from "../manager.ts";
@@ -282,10 +283,21 @@ class SubagentDashboard implements Component {
     // Hints
     lines.push(
       truncateToWidth(
-        theme.fg(
-          "dim",
-          `  ${configuredKeys(this.keybindings, "tui.select.up")}/${configuredKeys(this.keybindings, "tui.select.down")}/jk select · ${configuredKeys(this.keybindings, "tui.select.confirm")} take over · x abort · ${configuredKeys(this.keybindings, "tui.select.cancel")} close`,
-        ),
+        renderActionHints(this.theme, [
+          {
+            key: `${configuredKeys(this.keybindings, "tui.select.up")}/${configuredKeys(this.keybindings, "tui.select.down")}/jk`,
+            label: "select",
+          },
+          {
+            key: configuredKeys(this.keybindings, "tui.select.confirm"),
+            label: "take over",
+          },
+          { key: "x", label: "abort" },
+          {
+            key: configuredKeys(this.keybindings, "tui.select.cancel"),
+            label: "close",
+          },
+        ]),
         width,
       ),
     );
@@ -318,9 +330,7 @@ class SubagentDashboard implements Component {
 
       // Left: marker, status square, title, dim id
       const marker = isSelected ? theme.fg("accent", "❯") : " ";
-      const title = isSelected
-        ? theme.fg("accent", snap.title)
-        : theme.fg("text", snap.title);
+      const title = theme.fg("text", snap.title);
       const left = ` ${marker} ${statusGlyph(snap, theme)} ${title} ${theme.fg("dim", snap.id)}`;
 
       // Right: backend · model · context utilization · elapsed · status
@@ -339,7 +349,14 @@ class SubagentDashboard implements Component {
       const leftMax = Math.max(0, width - rightWidth - 2);
       const leftTruncated = truncateToWidth(left, leftMax);
       const gap = Math.max(2, width - visibleWidth(leftTruncated) - rightWidth);
-      out.push(truncateToWidth(leftTruncated + " ".repeat(gap) + right, width));
+      out.push(
+        highlightRow(
+          theme,
+          leftTruncated + " ".repeat(gap) + right,
+          width,
+          isSelected,
+        ),
+      );
     }
 
     if (start > 0) {
@@ -566,9 +583,31 @@ class TakeoverView implements Component, Focusable {
     lines.push(...this.input.render(width));
     lines.push(
       truncateToWidth(
-        theme.fg(
-          "dim",
-          `${configuredKeys(this.keybindings, "tui.input.submit")} send · ${configuredKeys(this.keybindings, "app.interrupt")} back · ${configuredKeys(this.keybindings, "app.clear")} abort run · ${configuredKeys(this.keybindings, "tui.editor.cursorUp")}/${configuredKeys(this.keybindings, "tui.editor.cursorDown")} scroll · ${configuredKeys(this.keybindings, "tui.editor.pageUp")}/${configuredKeys(this.keybindings, "tui.editor.pageDown")} page`,
+        renderActionHints(
+          theme,
+          [
+            {
+              key: configuredKeys(this.keybindings, "tui.input.submit"),
+              label: "send",
+            },
+            {
+              key: configuredKeys(this.keybindings, "app.interrupt"),
+              label: "back",
+            },
+            {
+              key: configuredKeys(this.keybindings, "app.clear"),
+              label: "abort run",
+            },
+            {
+              key: `${configuredKeys(this.keybindings, "tui.editor.cursorUp")}/${configuredKeys(this.keybindings, "tui.editor.cursorDown")}`,
+              label: "scroll",
+            },
+            {
+              key: `${configuredKeys(this.keybindings, "tui.editor.pageUp")}/${configuredKeys(this.keybindings, "tui.editor.pageDown")}`,
+              label: "page",
+            },
+          ],
+          "",
         ),
         width,
       ),

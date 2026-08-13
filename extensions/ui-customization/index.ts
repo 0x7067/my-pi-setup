@@ -38,6 +38,8 @@ const BOLD = "\x1b[1m";
 // act on. Keep in step with `accent` in ~/.config/deep-space/palette.toml.
 const ACCENT: Rgb = [216, 167, 102];
 const HIGHLIGHT: Rgb = [232, 192, 146];
+const TEXT: Rgb = [220, 220, 220];
+const DIM: Rgb = [87, 87, 87];
 
 function shade(amount: number): Rgb {
   return [
@@ -58,12 +60,12 @@ const PALETTE: Rgb[] = [
   shade(0.83),
 ];
 const TITLE_LINES = [
-  "  ██████╗  ██╗ ",
-  "  ██╔══██╗ ██║ ",
-  "  ██████╔╝ ██║ ",
-  "  ██╔═══╝  ██║ ",
-  "  ██║      ██║ ",
-  "  ╚═╝      ╚═╝ ",
+  "██████╗  ██╗",
+  "██╔══██╗ ██║",
+  "██████╔╝ ██║",
+  "██╔═══╝  ██║",
+  "██║      ██║",
+  "╚═╝      ╚═╝",
 ];
 const ANSI_PATTERN =
   /[\u001B\u009B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[a-zA-Z\d]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
@@ -174,11 +176,6 @@ function formatDirectory(cwd: string) {
   return sanitizeTerminalLabel(display);
 }
 
-function center(text: string, width: number) {
-  const padding = Math.max(0, Math.floor((width - visibleWidth(text)) / 2));
-  return truncateToWidth(`${" ".repeat(padding)}${text}`, width);
-}
-
 function columns(left: string, right: string, width: number) {
   if (!right) return truncateToWidth(left, width);
 
@@ -242,14 +239,15 @@ export default function uiCustomization(pi: ExtensionAPI) {
 
       return {
         render(width: number) {
-          const art = TITLE_LINES.map((line, row) =>
-            center(gradientText(line, row * 0.045), width),
-          );
-          const subtitle = center(
-            `${BOLD}${gradientText(title, 0.18)}${RESET}`,
+          const masthead = columns(
+            `${BOLD}${gradientText("pi", 0.18)}${RESET}${foreground(DIM, " · ")}${foreground(TEXT, title)}`,
+            foreground(DIM, "session · interactive"),
             width,
           );
-          return ["", ...art, subtitle, ""];
+          const art = TITLE_LINES.map((line, row) =>
+            truncateToWidth(`  ${gradientText(line, row * 0.045)}`, width),
+          );
+          return [masthead, "", ...art, ""];
         },
         invalidate() {},
       };

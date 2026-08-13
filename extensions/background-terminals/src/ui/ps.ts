@@ -15,6 +15,7 @@ import type {
 import { formatSize } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { highlightRow, renderActionHints } from "../../../shared/tui-style.ts";
 import { formatElapsed, formatExit, type TerminalSnapshot } from "../domain.ts";
 import type { TerminalReadModel } from "../manager.ts";
 import { createOutputLineCache, sanitizeText } from "./output-view.ts";
@@ -285,10 +286,21 @@ class TerminalDashboard implements Component {
     // Hints
     lines.push(
       truncateToWidth(
-        theme.fg(
-          "dim",
-          `  ${configuredKeys(this.keybindings, "tui.select.up")}/${configuredKeys(this.keybindings, "tui.select.down")}/jk select · ${configuredKeys(this.keybindings, "tui.select.confirm")} inspect · x kill · ${configuredKeys(this.keybindings, "tui.select.cancel")} close`,
-        ),
+        renderActionHints(theme, [
+          {
+            key: `${configuredKeys(this.keybindings, "tui.select.up")}/${configuredKeys(this.keybindings, "tui.select.down")}/jk`,
+            label: "select",
+          },
+          {
+            key: configuredKeys(this.keybindings, "tui.select.confirm"),
+            label: "inspect",
+          },
+          { key: "x", label: "kill" },
+          {
+            key: configuredKeys(this.keybindings, "tui.select.cancel"),
+            label: "close",
+          },
+        ]),
         width,
       ),
     );
@@ -321,9 +333,7 @@ class TerminalDashboard implements Component {
 
       // Left: marker, status square, title, dim id
       const marker = isSelected ? theme.fg("accent", "❯") : " ";
-      const title = isSelected
-        ? theme.fg("accent", oneLine(snap.title))
-        : theme.fg("text", oneLine(snap.title));
+      const title = theme.fg("text", oneLine(snap.title));
       const left = ` ${marker} ${statusGlyph(snap, theme)} ${title} ${theme.fg("dim", snap.id)}`;
 
       // Right: pid · elapsed · exit/status
@@ -341,7 +351,14 @@ class TerminalDashboard implements Component {
       const leftMax = Math.max(0, width - rightWidth - 2);
       const leftTruncated = truncateToWidth(left, leftMax);
       const gap = Math.max(2, width - visibleWidth(leftTruncated) - rightWidth);
-      out.push(truncateToWidth(leftTruncated + " ".repeat(gap) + right, width));
+      out.push(
+        highlightRow(
+          theme,
+          leftTruncated + " ".repeat(gap) + right,
+          width,
+          isSelected,
+        ),
+      );
     }
 
     if (start > 0) {
@@ -606,9 +623,26 @@ class TerminalDetailView implements Component {
     lines.push(border);
     lines.push(
       truncateToWidth(
-        theme.fg(
-          "dim",
-          `${configuredKeys(this.keybindings, "tui.select.cancel")} back · t stdout/stderr · x kill · ${configuredKeys(this.keybindings, "tui.editor.cursorUp")}/${configuredKeys(this.keybindings, "tui.editor.cursorDown")}/jk scroll · ${configuredKeys(this.keybindings, "tui.editor.pageUp")}/${configuredKeys(this.keybindings, "tui.editor.pageDown")} page · g/G top/bottom`,
+        renderActionHints(
+          theme,
+          [
+            {
+              key: configuredKeys(this.keybindings, "tui.select.cancel"),
+              label: "back",
+            },
+            { key: "t", label: "stdout/stderr" },
+            { key: "x", label: "kill" },
+            {
+              key: `${configuredKeys(this.keybindings, "tui.editor.cursorUp")}/${configuredKeys(this.keybindings, "tui.editor.cursorDown")}/jk`,
+              label: "scroll",
+            },
+            {
+              key: `${configuredKeys(this.keybindings, "tui.editor.pageUp")}/${configuredKeys(this.keybindings, "tui.editor.pageDown")}`,
+              label: "page",
+            },
+            { key: "g/G", label: "top/bottom" },
+          ],
+          "",
         ),
         width,
       ),

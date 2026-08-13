@@ -9,6 +9,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
+  Container,
   Editor,
   type EditorTheme,
   Key,
@@ -18,6 +19,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { Cause, Effect, Exit } from "effect";
 import { Type, type Static } from "typebox";
+import { highlightRow, renderActionHints } from "../shared/tui-style.ts";
 import {
   ASK_USER_PARAMETER_DESCRIPTIONS,
   ASK_USER_PROMPT_GUIDELINES,
@@ -261,10 +263,12 @@ export default function askUser(pi: ExtensionAPI) {
 
             const title = " Question ";
             add(
-              theme.fg(
-                "accent",
-                `─${title}${"─".repeat(Math.max(0, width - title.length - 1))}`,
-              ),
+              theme.fg("border", "─") +
+                theme.fg("accent", title) +
+                theme.fg(
+                  "border",
+                  "─".repeat(Math.max(0, width - title.length - 1)),
+                ),
             );
             for (const line of wrapText(
               params.question,
@@ -281,14 +285,20 @@ export default function askUser(pi: ExtensionAPI) {
               const marker = opt.isOther ? "✎" : `${i + 1}.`;
               const label = `${marker} ${opt.label}`;
 
-              if (selected || (opt.isOther && editMode)) {
-                add(prefix + theme.fg("accent", label));
-              } else {
-                add(prefix + theme.fg(opt.isOther ? "muted" : "text", label));
-              }
+              const optionLine =
+                prefix +
+                theme.fg(opt.isOther && !editMode ? "muted" : "text", label);
+              add(highlightRow(theme, optionLine, width, selected));
 
               if (opt.description) {
-                add(`      ${theme.fg("muted", opt.description)}`);
+                add(
+                  highlightRow(
+                    theme,
+                    `      ${theme.fg("muted", opt.description)}`,
+                    width,
+                    selected,
+                  ),
+                );
               }
             }
 
@@ -302,16 +312,30 @@ export default function askUser(pi: ExtensionAPI) {
 
             lines.push("");
             if (editMode) {
-              add(theme.fg("dim", " Enter submit • Esc back to options"));
+              add(
+                renderActionHints(
+                  theme,
+                  [
+                    { key: "Enter", label: "submit" },
+                    { key: "Esc", label: "back to options" },
+                  ],
+                  " ",
+                ),
+              );
             } else {
               add(
-                theme.fg(
-                  "dim",
-                  ` ↑↓ or 1-${allOptions.length} select • Enter confirm • Esc dismiss`,
+                renderActionHints(
+                  theme,
+                  [
+                    { key: `↑↓ / 1-${allOptions.length}`, label: "select" },
+                    { key: "Enter", label: "confirm" },
+                    { key: "Esc", label: "dismiss" },
+                  ],
+                  " ",
                 ),
               );
             }
-            add(theme.fg("accent", "─".repeat(width)));
+            add(theme.fg("border", "─".repeat(width)));
 
             cachedLines = lines;
             return lines;
@@ -369,20 +393,10 @@ export default function askUser(pi: ExtensionAPI) {
       );
     },
 
-    renderCall(args, theme, _context) {
-      let text = theme.fg("toolTitle", theme.bold("ask_user "));
-      text += theme.fg(
-        "muted",
-        typeof args.question === "string" ? args.question : "",
-      );
-      const opts = Array.isArray(args.options)
-        ? (args.options as DisplayOption[])
-        : [];
-      if (opts.length > 0) {
-        const numbered = opts.map((o, i) => `${i + 1}. ${o.label}`);
-        text += `\n${theme.fg("dim", `  ${numbered.join("  ")}`)}`;
-      }
-      return new Text(text, 0, 0);
+    renderCall(_args, _theme, _context) {
+      // The live custom UI already presents the complete question and options.
+      // Suppress its pending transcript preview so the user sees one question.
+      return new Container();
     },
 
     renderResult(result, _options, theme, _context) {

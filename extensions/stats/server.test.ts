@@ -32,7 +32,16 @@ test("serves a token-protected dashboard and API on loopback", async (context) =
 
   const page = await fetch(server.url);
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /<title>Pi Stats<\/title>/);
+  const html = await page.text();
+  assert.match(html, /<title>Pi Stats<\/title>/);
+  assert.match(html, /--ground: #0f0f0f/);
+  assert.match(html, /--accent: #d8a766/);
+  assert.match(html, /--critical: #e2574c/);
+  assert.match(html, /Could not load the local ledger\. Refresh to retry\./);
+  assert.match(html, /<button id="retry" type="button">Retry<\/button>/);
+  assert.match(html, /id="bars" tabindex="0" role="img"/);
+  assert.doesNotMatch(html, /class="bar-wrap" tabindex=/);
+  assert.doesNotMatch(html, /#2367d1|#74a5f0|#55745e|#8ab596/);
   assert.match(
     page.headers.get("content-security-policy") ?? "",
     /frame-ancestors 'none'/,

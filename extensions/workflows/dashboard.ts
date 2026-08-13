@@ -45,6 +45,7 @@ import {
   type TranscriptEntry,
   type WorkflowDetails,
 } from "./model.ts";
+import { highlightRow, renderActionHints } from "../shared/tui-style.ts";
 
 const NOTICE_TTL_MS = 4000;
 const MIN_HEIGHT = 10;
@@ -644,6 +645,7 @@ export class WorkflowDashboard {
     rows: string[],
     width: number,
     height: number,
+    active = false,
   ): string[] {
     const theme = this.theme;
     const inner = Math.max(0, width - 2);
@@ -651,7 +653,9 @@ export class WorkflowDashboard {
     const titleText = truncateToWidth(` ${title} `, Math.max(0, inner - 2));
     const dashes = Math.max(0, inner - visibleWidth(titleText) - 1);
     const lines: string[] = [
-      border("╭─") + titleText + border("─".repeat(dashes) + "╮"),
+      border("╭─") +
+        theme.fg(active ? "accent" : "text", titleText) +
+        border("─".repeat(dashes) + "╮"),
     ];
     const bodyHeight = Math.max(0, height - 2);
     for (let i = 0; i < bodyHeight; i++) {
@@ -686,7 +690,11 @@ export class WorkflowDashboard {
     const theme = this.theme;
     if (this.notice)
       return truncateToWidth(theme.fg("accent", ` ${this.notice}`), width);
-    return truncateToWidth(theme.fg("dim", ` ${hint}`), width);
+    const actions = hint.split(" · ").map((part) => {
+      const [key = "", ...label] = part.split(" ");
+      return { key, label: label.join(" ") };
+    });
+    return truncateToWidth(renderActionHints(theme, actions, " "), width);
   }
 
   private renderList(width: number, height: number): string[] {
@@ -712,6 +720,7 @@ export class WorkflowDashboard {
           [theme.fg("dim", " no workflow runs yet")],
           width,
           panelHeight,
+          false,
         ),
       );
       lines.push(
@@ -731,9 +740,7 @@ export class WorkflowDashboard {
       const d = entry.details;
       const marker = selected ? theme.fg("accent", "❯") : " ";
       const name = d.name ?? d.runId;
-      const label = selected
-        ? theme.fg("accent", name)
-        : theme.fg("text", name);
+      const label = theme.fg("text", name);
       const { done, failed } = countStates(d);
       const settled = done + failed;
       const right =
@@ -744,7 +751,12 @@ export class WorkflowDashboard {
         theme.fg(statusColor(d.status), statusWord(d.status)) +
         " ";
       const left = ` ${marker} ${statusSquareFor(d, theme)} ${label} ${theme.fg("dim", d.runId)}`;
-      return this.split(left, right, width - 2);
+      return highlightRow(
+        theme,
+        this.split(left, right, width - 2),
+        width - 2,
+        selected,
+      );
     });
     lines.push(...this.panel("Runs", rows, width, panelHeight));
     lines.push(
@@ -812,15 +824,17 @@ export class WorkflowDashboard {
         (a) => a.state !== "running",
       ).length;
       const square = groupSquare(group, theme);
-      const title =
-        selected && this.detailFocus === "phases"
-          ? theme.fg("accent", group.title)
-          : theme.fg("text", group.title);
+      const title = theme.fg("text", group.title);
       const counts =
         group.agents.length > 0
           ? theme.fg("dim", `${groupDone}/${group.agents.length} `)
           : theme.fg("dim", "- ");
-      return this.split(` ${marker} ${square} ${title}`, counts, sidebarInner);
+      return highlightRow(
+        theme,
+        this.split(` ${marker} ${square} ${title}`, counts, sidebarInner),
+        sidebarInner,
+        selected && this.detailFocus === "phases",
+      );
     });
 
     // Right: agents in the selected phase.
@@ -847,16 +861,23 @@ export class WorkflowDashboard {
         const stats = [agent.model, agentContext(agent)]
           .filter(Boolean)
           .join(" · ");
-        const label =
-          selected && this.detailFocus === "agents"
-            ? theme.fg("accent", agent.label.padEnd(Math.min(maxLabel, 40)))
-            : theme.fg("text", agent.label.padEnd(Math.min(maxLabel, 40)));
+        const label = theme.fg(
+          "text",
+          agent.label.padEnd(Math.min(maxLabel, 40)),
+        );
         const left = ` ${marker} ${stateSquare(agent.state, theme)} ${label}  ${theme.fg("dim", stats)}`;
         const right = theme.fg(
           "dim",
           `${formatElapsed(agent.startedAt, agent.finishedAt)} `,
         );
-        agentRows.push(this.split(left, right, agentsInner));
+        agentRows.push(
+          highlightRow(
+            theme,
+            this.split(left, right, agentsInner),
+            agentsInner,
+            selected && this.detailFocus === "agents",
+          ),
+        );
         if (agent.error) {
           agentRows.push(
             truncateToWidth(
@@ -891,12 +912,14 @@ export class WorkflowDashboard {
       phaseRows,
       sidebarWidth,
       panelHeight,
+      this.detailFocus === "phases",
     );
     const rightPanel = this.panel(
       agentsTitle,
       agentRows,
       agentsWidth,
       panelHeight,
+      this.detailFocus === "agents",
     );
     for (let i = 0; i < panelHeight; i++) {
       lines.push(`${leftPanel[i] ?? ""} ${rightPanel[i] ?? ""}`);
@@ -989,7 +1012,7 @@ export class WorkflowDashboard {
       rows.length > bodyHeight
         ? `Transcript · ${this.transcriptScroll + 1}-${Math.min(rows.length, this.transcriptScroll + bodyHeight)}/${rows.length}`
         : "Transcript";
-    lines.push(...this.panel(position, visible, width, panelHeight));
+    lines.push(...this.panel(position, visible, width, panelHeight, true));
     lines.push(
       this.hintLine(
         "j/k scroll · ctrl-u/d page · g/G top/bottom · h/left/esc back",

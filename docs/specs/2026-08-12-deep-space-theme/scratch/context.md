@@ -143,3 +143,24 @@ Tradeoff: clearest moment-to-moment focus and strongest personality, hides more 
 ## Whole-set feedback placeholder
 
 Reserve a short masthead paragraph. Initial hypothesis: Signal Deck best balances Pi's long-session reading, exact current semantics, and cross-view consistency; Flight Director is strongest for dense overlays; Event Horizon has the sharpest modal focus; Observatory Rail improves wayfinding; Black Box best preserves conversation continuity. Replace or refine this after rendered critique.
+
+## Independent critique corrections — final pass
+
+Apply these changes to the completed five-direction canvas without deleting, hiding, or materially redesigning any board:
+
+1. Keep Signal Deck as the sole recommendation. The independent critique confirmed it has the clearest hierarchy, lowest sustained cognitive load, most authentic keyboard-first footer grammar, strongest cross-view consistency, and best adherence to exact palette semantics.
+2. Event Horizon Focus: functional context in every receded region must not use `#575757`. Use `#7c7c7c` for body-sized receded context and `#a5a5a5` for small metadata on raised surfaces. Reserve `#575757` for rules, separators, and ghost geometry. Preserve the contrast-based focus idea without making context unreadable.
+3. Add a compact aligned whole-set comparison strip below the masthead/palette and above the full boards. Columns are the five directions; rows are: paradigm, main benefit, main tradeoff, best-fit views, special state slot, and narrow-terminal cost. Use concise text and existing palette values. If necessary, increase the masthead region and shift every full board downward by the same amount; retain all full-size boards.
+4. Black Box Transcript: raise load-bearing timestamps and event metadata from `#575757` to `#7c7c7c`; keep indentation/blank rows as the structural distinction.
+5. Add a compact numbered source key to the masthead with exact local source paths for the nine views and stable external repository URLs: `https://github.com/coreyt/monospace-design-tui` and `https://github.com/flipt-io/flipt/blob/v2/cmd/flipt/DESIGN.md`. Existing compressed `ref:` blocks may point to the numbered key.
+6. Observatory Rail and Flight Director: keep only two or three current actions in narrow footer/rail key legends, then show `? help` for the secondary shortcut list. Do not remove the full command grammar from normal-width views.
+7. Rename the masthead title to `Pi Deep Space — across nine representative views` so scope is precise. Update the feedback label to `WHOLE-SET READ · independent critique complete`, and remove provisional wording from the recommendation chip while leaving Signal Deck recommended.
+8. Re-run an exact-palette sweep and clipping check after edits. No invented hex values, no overlap, and no hidden boards.
+
+## Independent critique corrections — second and final batch
+
+Only two partial findings remain. Apply these without changing the comparison strip, recommendation, source key, or any already-resolved region:
+
+1. Event Horizon Focus: remove or substantially reduce parent-frame opacity on every receded region that contains functional text. Functional context must render at its assigned semantic token's real effective contrast: `#7c7c7c` on ground and `#a5a5a5` for small metadata on raised surfaces. Preserve progressive focus using surface elevation, accent boundary, active-band brightness, and `#575757` rules/ghost geometry—not by dimming the entire functional subtree. No functional text may inherit opacity below 0.85.
+2. Observatory Rail narrow treatment only: replace tiny stacked shortcut lists with at most two current actions plus `? help`. Keep the location/breadcrumb treatment and normal-width rail grammar unchanged.
+3. Re-run the exact-palette, effective-opacity, overlap, and clipping checks. Preserve all five boards and Signal Deck as the sole recommendation.
