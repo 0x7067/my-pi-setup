@@ -16,11 +16,11 @@ npm run check
 npm test
 ```
 
-The registry and Git package sources in `settings.json` are pinned. The local
-Hound source is accepted only when doctor finds
+The npm package sources in `settings.json` are pinned. The local Hound source
+is accepted only when doctor finds
 `@houndmcp/hound-mcp-pi@13.1.1` and its expected extension entrypoint. Run
 `pi install` with a new explicit version or commit when intentionally upgrading
-one of the other packages, and update the doctor expectation with Hound.
+one of the npm packages. Update Hound and the doctor expectation together.
 
 Remote OpenAI compaction is vendored under
 `extensions/openai-server-compaction` from upstream commit
@@ -31,18 +31,11 @@ requests. Update the vendored source and its recorded upstream commit together.
 The vendored Devin provider and its local cache-identity and privacy patches are
 documented in [`extensions/devin-auth/README.md`](extensions/devin-auth/README.md).
 
-## Firecrawl
+## Web research
 
-The search, scrape, and crawl tools require a Firecrawl API key. Follow [Firecrawl's Node.js getting-started guide](https://docs.firecrawl.dev/quickstarts/nodejs) to create one, then copy the example environment file:
-
-```sh
-install -m 600 ~/.pi/agent/.env.example ~/.pi/agent/.env
-```
-
-Replace the placeholder in `~/.pi/agent/.env` with your API key.
-
-If Firecrawl is not wanted, remove the Firecrawl extension and its workspace
-entry instead of leaving a nonfunctional tool installed.
+Hound provides the web search, fetch, crawl, and screenshot tools. It is loaded
+from `~/.hound/pi-extension`, so keep that local package installed at the
+version checked by `npm run doctor`.
 
 ## Private state
 
@@ -58,12 +51,12 @@ The `file-search` extension registers `fd` and `rg` as model tools. No setup is 
 
 ## Theme
 
-The checked-in settings use the included Rose Pine Moon theme. To select it
+The checked-in settings use the included Deep Space theme. To select it
 manually while keeping your other settings:
 
 ```json
 {
-  "theme": "rose-pine-moon"
+  "theme": "deep-space"
 }
 ```
 
@@ -79,6 +72,23 @@ badge reads `on` when the loopback bridge is connected.
 The token is stored at `~/.pi/agent/browser-relay.key` with private file
 permissions and is ignored by Git. Do not share it: a process with the token can
 control tabs attached by the Chrome extension.
+
+The separately installed `pi-agent-browser-native` package handles isolated
+browser sessions. Use the relay only when Pi needs a tab from your existing
+signed-in Chrome profile.
+
+## ai-memory
+
+The generated `extensions/ai-memory.ts` bridge connects Pi to the local
+ai-memory service at `127.0.0.1:49474`. Regenerate the bridge after an
+ai-memory upgrade instead of editing it:
+
+```sh
+ai-memory install-hooks --apply --agent pi \
+  --server-url http://127.0.0.1:49474 \
+  --project-strategy repo-root \
+  --config-file ~/.pi/agent/extensions/ai-memory.ts
+```
 
 ## Stats
 

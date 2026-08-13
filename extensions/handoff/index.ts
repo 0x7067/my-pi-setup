@@ -22,21 +22,18 @@ import type {
   SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { convertToLlm } from "@earendil-works/pi-coding-agent";
-import { matchesKey, Key } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import {
   existsSync,
-  readFileSync,
   mkdirSync,
+  readFileSync,
   writeFileSync,
   unlinkSync,
 } from "node:fs";
 import * as path from "node:path";
-import { join, dirname, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { OverlayFrame } from "../shared/overlay.js";
-import { THINKING_ROLES } from "../shared/thinking-colors.js";
 import {
   detectMultiplexer,
   createSplit,
@@ -68,246 +65,14 @@ function getPiInvocationParts(): string[] {
   return ["pi"];
 }
 
-interface HandoffModel {
-  key: string;
-  label: string;
-  provider: string;
-  model: string;
-  thinking?: string;
-}
-
-const THINKING_LEVELS = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-] as const;
-type ThinkingLevel = (typeof THINKING_LEVELS)[number];
-
-interface SelectedModel {
-  provider: string;
-  model: string;
-  thinking: ThinkingLevel;
-}
-
-function loadFavouriteModels(): HandoffModel[] {
-  const configPath = join(
-    dirname(new URL(import.meta.url).pathname),
-    "../leader-key/favourite-models.json",
-  );
-  try {
-    const raw = readFileSync(configPath, "utf-8");
-    const parsed = JSON.parse(raw) as Array<Partial<HandoffModel>>;
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (e) =>
-          typeof e.label === "string" &&
-          typeof e.provider === "string" &&
-          typeof e.model === "string",
-      )
-      .map((e, index) => ({
-        key: typeof e.key === "string" ? e.key : String(index + 1),
-        label: e.label!,
-        provider: e.provider!,
-        model: e.model!,
-        thinking: e.thinking,
-      }));
-  } catch {
-    return [];
-  }
-}
-
-async function pickModel(
-  ctx: ExtensionContext,
-): Promise<SelectedModel | null | undefined> {
-  const favourites = loadFavouriteModels();
-  if (favourites.length === 0) {
-    ctx.ui.notify(
-      "No favourite models configured; using current/default model.",
-      "info",
-    );
-    return undefined;
-  }
-
-  interface PickerEntry {
-    fav: HandoffModel;
-    thinkingIndex: number;
-  }
-
-  const defaultThinkingIndex = THINKING_LEVELS.indexOf("medium");
-  const entries: PickerEntry[] = favourites.map((fav) => {
-    const favThinking = fav.thinking as ThinkingLevel | undefined;
-    const idx = favThinking ? THINKING_LEVELS.indexOf(favThinking) : -1;
-    return {
-      fav,
-      thinkingIndex: idx >= 0 ? idx : defaultThinkingIndex,
-    };
-  });
-
-  return ctx.ui.custom<SelectedModel | null>(
-    (tui, theme, _kb, done) => {
-      let highlightedIndex = 0;
-      const th = theme;
-
-      return {
-        render: (width: number) => {
-          const f = new OverlayFrame(width, th);
-          const lines: string[] = [];
-
-          lines.push(f.top());
-          lines.push(f.row(th.fg("accent", th.bold("Handoff Model"))));
-          lines.push(f.separator());
-
-          for (let i = 0; i < entries.length; i++) {
-            const entry = entries[i];
-            const isHighlighted = i === highlightedIndex;
-
-            const keyTag = th.fg("dim", `[${entry.fav.key}]`);
-            const label = isHighlighted
-              ? th.fg("accent", th.bold(entry.fav.label))
-              : th.fg("text", entry.fav.label);
-            const providerTag = th.fg("dim", `(${entry.fav.provider})`);
-
-            const thinking = THINKING_LEVELS[entry.thinkingIndex];
-            const thinkingRole = (THINKING_ROLES[thinking] ??
-              "dim") as Parameters<typeof th.fg>[0];
-            const thinkingTag = isHighlighted
-              ? th.fg("dim", "\u2039") +
-                th.fg(thinkingRole, ` ${thinking} `) +
-                th.fg("dim", "\u203a")
-              : th.fg(thinkingRole, thinking);
-
-            const line = `${isHighlighted ? ">" : " "} ${keyTag} ${label} ${providerTag}  ${thinkingTag}`;
-            lines.push(f.rowTruncated(line));
-          }
-
-          lines.push(f.separator());
-          lines.push(
-            f.row(
-              th.fg(
-                "dim",
-                "enter select | h/l thinking | j/k navigate | esc cancel",
-              ),
-            ),
-          );
-          lines.push(f.bottom());
-
-          return lines;
-        },
-        invalidate: () => {},
-        handleInput: (data: string) => {
-          if (matchesKey(data, "escape") || matchesKey(data, Key.ctrl("c"))) {
-            done(null);
-            return;
-          }
-
-          if (
-            matchesKey(data, "up") ||
-            matchesKey(data, Key.ctrl("p")) ||
-            data === "k"
-          ) {
-            highlightedIndex = Math.max(0, highlightedIndex - 1);
-            tui.requestRender();
-            return;
-          }
-          if (
-            matchesKey(data, "down") ||
-            matchesKey(data, Key.ctrl("n")) ||
-            data === "j"
-          ) {
-            highlightedIndex = Math.min(
-              entries.length - 1,
-              highlightedIndex + 1,
-            );
-            tui.requestRender();
-            return;
-          }
-
-          if (matchesKey(data, "left") || data === "h") {
-            const entry = entries[highlightedIndex];
-            entry.thinkingIndex =
-              (entry.thinkingIndex - 1 + THINKING_LEVELS.length) %
-              THINKING_LEVELS.length;
-            tui.requestRender();
-            return;
-          }
-          if (matchesKey(data, "right") || data === "l") {
-            const entry = entries[highlightedIndex];
-            entry.thinkingIndex =
-              (entry.thinkingIndex + 1) % THINKING_LEVELS.length;
-            tui.requestRender();
-            return;
-          }
-
-          // Quick-select by key
-          const matchIndex = entries.findIndex((e) => e.fav.key === data);
-          if (matchIndex >= 0) {
-            const entry = entries[matchIndex];
-            const thinking = THINKING_LEVELS[entry.thinkingIndex];
-            done({
-              provider: entry.fav.provider,
-              model: entry.fav.model,
-              thinking,
-            });
-            return;
-          }
-
-          if (matchesKey(data, "enter")) {
-            const entry = entries[highlightedIndex];
-            const thinking = THINKING_LEVELS[entry.thinkingIndex];
-            done({
-              provider: entry.fav.provider,
-              model: entry.fav.model,
-              thinking,
-            });
-            return;
-          }
-        },
-      };
-    },
-    { overlay: true },
-  );
-}
-
-function buildPiCommand(prompt: string, model?: SelectedModel): string {
-  const parts = [...getPiInvocationParts()];
-  if (model) {
-    parts.push(
-      "--model",
-      `${model.provider}/${model.model}`,
-      "--thinking",
-      model.thinking,
-    );
-  }
-  if (prompt.length > 0) {
-    parts.push(prompt);
-  }
-  return parts.map(shellQuote).join(" ");
-}
-
 /**
  * Build a pi command that reads the prompt from a file via shell command
  * substitution. The multiplexer only has to transmit the short
  * `pi "$(cat '<file>')"` command; the full prompt text travels from disk
  * straight into pi's argv without being typed/pasted through the mux.
  */
-function buildPiCommandFromFile(
-  promptFile: string,
-  prompt: string,
-  model?: SelectedModel,
-): string {
+function buildPiCommandFromFile(promptFile: string, prompt: string): string {
   const parts = [...getPiInvocationParts()];
-  if (model) {
-    parts.push(
-      "--model",
-      `${model.provider}/${model.model}`,
-      "--thinking",
-      model.thinking,
-    );
-  }
   const quotedParts = parts.map(shellQuote);
   if (prompt.length > 0) {
     // Path is single-quoted inside the substitution so spaces/special chars are safe.
@@ -930,7 +695,6 @@ function saveHandoffArtifact(prompt: string, sessionId: string): string | null {
 async function performHandoff(
   ctx: ExtensionContext,
   goal?: string,
-  model?: SelectedModel,
   useTab = false,
 ): Promise<string | undefined> {
   if (!ctx.hasUI) return "Handoff requires interactive mode.";
@@ -997,7 +761,7 @@ async function performHandoff(
   const promptFile = writeTempPromptFile(finalPrompt);
   if (!promptFile) return "Failed to save handoff prompt to disk.";
 
-  const command = buildPiCommandFromFile(promptFile, finalPrompt, model);
+  const command = buildPiCommandFromFile(promptFile, finalPrompt);
   sendKeys(target, command);
 
   // Safe to delete once the shell has expanded the command substitution.
@@ -1017,9 +781,7 @@ export default function (pi: ExtensionAPI) {
       "Transfer context to a new pi session in a split or tab (tmux/cmux). Usage: /handoff [--tab] [optional goal]",
     handler: async (args, ctx) => {
       const { useTab, goal } = parseArgs(args);
-      const model = await pickModel(ctx);
-      if (model === null) return; // cancelled
-      const error = await performHandoff(ctx, goal, model, useTab);
+      const error = await performHandoff(ctx, goal, useTab);
       if (error) {
         ctx.ui.notify(error, "error");
       } else {
@@ -1051,7 +813,7 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const effectiveGoal = normalizeGoal(params.goal);
       const useTab = params.tab === true;
-      const error = await performHandoff(ctx, params.goal, undefined, useTab);
+      const error = await performHandoff(ctx, params.goal, useTab);
       if (error) {
         return {
           content: [

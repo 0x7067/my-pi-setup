@@ -24,7 +24,6 @@ extensions/summaries/config.private.json.*.tmp
 # Environment variables and secrets
 .env
 .env.*
-!.env.example
 *.pem
 *.key
 
@@ -33,6 +32,9 @@ extensions/summaries/config.private.json.*.tmp
 *.tmp
 *.swp
 .DS_Store
+webui/
+webui-rpc-supervisor/
+extensions/*.bak-*
 
 # Local editor settings
 .vscode/

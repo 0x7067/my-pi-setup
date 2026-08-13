@@ -1,0 +1,19 @@
+:root {
+  --page-bg: #0f0f0f;
+  --card-bg: #1a1a1a;
+  --selected-bg: #222222;
+  --info-bg: #231e18;
+  --line: #2d2d2d;
+  --inactive: #414141;
+  --faint: #575757;
+  --dim: #7c7c7c;
+  --mid: #8a8a8a;
+  --gray: #a5a5a5;
+  --soft: #c0c0c0;
+  --text: #dcdcdc;
+  --bright: #f0f0f0;
+  --white: #ffffff;
+  --accent: #d8a766;
+  --accent-hover: #e8c092;
+  --danger: #e2574c;
+}

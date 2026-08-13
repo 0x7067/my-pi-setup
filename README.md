@@ -2,8 +2,8 @@
 
 This setup is intentionally opinionated. It:
 
-- uses Rose Pine Moon as the theme
-- adds firecrawl tools for searching and scraping
+- uses Deep Space as the theme
+- uses Hound for web search, fetching, crawling, and screenshots
 - updates the bottom bar to have the info I prefer to see
 - adds background terminals + ui to manage them
 - adds subagents to pi
@@ -11,8 +11,10 @@ This setup is intentionally opinionated. It:
 - adds an ask user tool, which lets the model ask multiple choice questions
 - adds first-class `fd` (file discovery) and `rg` (content search) tools
 - adds an authenticated relay for inspecting and controlling selected Chrome tabs
+- adds `pi-agent-browser-native` for isolated browser automation
 - adds a private local dashboard for Pi usage, cost, models, projects, and cache reuse
-- adds Pi Lens, Hermes memory, run summaries, and Calm mode
+- adds Pi Lens, ai-memory, run summaries, and Calm mode
+- uses Synthetic's vision-capable large model by default
 - vendors Codex-style OpenAI compaction with a Pi 0.84 compatibility patch
 - vendors the Devin provider with conversation-scoped prompt-cache identity
 
