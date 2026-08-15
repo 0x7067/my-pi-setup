@@ -1,8 +1,8 @@
 {
   "lastChangelogVersion": "0.84.1",
   "theme": "deep-space",
-  "defaultProvider": "synthetic",
-  "defaultModel": "syn:large:vision",
+  "defaultProvider": "kimi-coding",
+  "defaultModel": "k3-256k",
   "defaultThinkingLevel": "high",
   "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
@@ -12,9 +12,9 @@
   "packages": [
     "npm:pi-lens@3.8.74",
     "../../.hound/pi-extension",
-    "npm:@aliou/pi-synthetic@0.24.3",
     "npm:deepseek-peak-pricing-hours",
-    "npm:@53able/pi-agent-browser@0.6.1"
+    "npm:@53able/pi-agent-browser@0.6.1",
+    "npm:@benvargas/pi-synthetic-provider@1.2.4"
   ],
   "treeFilterMode": "default",
   "compaction": {
