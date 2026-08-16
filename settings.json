@@ -1,25 +1,27 @@
 {
-  "lastChangelogVersion": "0.84.1",
-  "theme": "deep-space",
-  "defaultProvider": "synthetic",
-  "defaultModel": "syn:large:text",
-  "defaultThinkingLevel": "high",
+  "lastChangelogVersion": "0.84.2",
+  "theme": "oxocarbon",
+  "defaultProvider": "devin",
+  "defaultModel": "swe-1-7-lightning",
+  "defaultThinkingLevel": "medium",
+  "transport": "websocket-cached",
   "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
   "showCacheMissNotices": true,
   "steeringMode": "all",
   "followUpMode": "all",
+  "skills": ["-/Users/pedro/.agents/skills/agent-browser"],
   "packages": [
     "npm:pi-lens@3.8.74",
-    "../../.hound/pi-extension",
-    "npm:deepseek-peak-pricing-hours",
+    "npm:deepseek-peak-pricing-hours@0.1.1",
     "npm:@53able/pi-agent-browser@0.6.1",
-    "npm:@benvargas/pi-synthetic-provider@1.2.4"
+    "npm:@benvargas/pi-synthetic-provider@1.2.4",
+    "git:github.com/dondai44423/master-fetch@v13.1.2"
   ],
   "treeFilterMode": "default",
   "compaction": {
     "enabled": true
   },
   "quietStartup": true,
-  "tuiMode": "fullscreen"
+  "tuiMode": "regular"
 }
