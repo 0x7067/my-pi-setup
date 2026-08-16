@@ -1,16 +1,18 @@
 {
   "lastChangelogVersion": "0.84.2",
   "theme": "oxocarbon",
-  "defaultProvider": "devin",
-  "defaultModel": "swe-1-7-lightning",
-  "defaultThinkingLevel": "medium",
+  "defaultProvider": "deepseek",
+  "defaultModel": "deepseek-v4-flash",
+  "defaultThinkingLevel": "high",
   "transport": "websocket-cached",
   "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
   "showCacheMissNotices": true,
   "steeringMode": "all",
   "followUpMode": "all",
-  "skills": ["-/Users/pedro/.agents/skills/agent-browser"],
+  "skills": [
+    "-/Users/pedro/.agents/skills/agent-browser"
+  ],
   "packages": [
     "npm:pi-lens@3.8.74",
     "npm:deepseek-peak-pricing-hours@0.1.1",
@@ -23,5 +25,8 @@
     "enabled": true
   },
   "quietStartup": true,
-  "tuiMode": "regular"
+  "tuiMode": "regular",
+  "markdown": {
+    "mermaid": "streaming"
+  }
 }
