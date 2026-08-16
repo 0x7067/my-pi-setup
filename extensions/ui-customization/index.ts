@@ -34,12 +34,12 @@ interface DashboardTui extends RenderableNode {
 
 const RESET = "\x1b[0m";
 const BOLD = "\x1b[1m";
-// Deep Space accent, the same warm tan the theme uses for anything you can
-// act on. Keep in step with `accent` in ~/.config/deep-space/palette.toml.
-const ACCENT: Rgb = [216, 167, 102];
-const HIGHLIGHT: Rgb = [232, 192, 146];
-const TEXT: Rgb = [220, 220, 220];
-const DIM: Rgb = [87, 87, 87];
+// Oxocarbon accent, the same magenta the theme uses for anything you can
+// act on. Keep in step with `accent` in ~/.config/oxocarbon/palette.toml.
+const ACCENT: Rgb = [238, 83, 150];
+const HIGHLIGHT: Rgb = [255, 126, 182];
+const TEXT: Rgb = [242, 244, 248];
+const DIM: Rgb = [141, 141, 141];
 
 function shade(amount: number): Rgb {
   return [

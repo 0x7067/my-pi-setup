@@ -51,12 +51,12 @@ The `file-search` extension registers `fd` and `rg` as model tools. No setup is 
 
 ## Theme
 
-The checked-in settings use the included Deep Space theme. To select it
+The checked-in settings use the included Oxocarbon theme. To select it
 manually while keeping your other settings:
 
 ```json
 {
-  "theme": "deep-space"
+  "theme": "oxocarbon"
 }
 ```
 
