@@ -18,10 +18,11 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 
 export const DEEPSEEK_OCR_MODEL = "mlx-community/DeepSeek-OCR-2-4bit";
+export const GLM_OCR_MODEL = "mlx-community/GLM-OCR-4bit";
 export const QWEN_FUSION_MODEL = "mlx-community/Qwen3.5-4B-MLX-4bit";
 export const MODELS_DIR = join(homedir(), ".cache", "custom-ocr", "models");
 
-/** Repetition penalty benchmarked for DeepSeek-OCR transcription. */
+/** Repetition penalty for OCR transcription (benchmarked on DeepSeek-OCR). */
 export const OCR_REPETITION_PENALTY = 1.2;
 export const OCR_MAX_TOKENS = 4096;
 export const FUSION_MAX_TOKENS = 4096;
@@ -33,10 +34,13 @@ const KILL_ESCALATION_MS = 3_000;
 
 export type WorkerName = "ocr" | "fusion";
 
-export const WORKER_MODELS: Record<WorkerName, string> = {
-  ocr: DEEPSEEK_OCR_MODEL,
-  fusion: QWEN_FUSION_MODEL,
-};
+/** Model ids for both workers given the selected OCR transcription model. */
+export function workerModels(ocrModel: string): Record<WorkerName, string> {
+  return {
+    ocr: ocrModel,
+    fusion: QWEN_FUSION_MODEL,
+  };
+}
 
 export class PrivateModeError extends Error {
   override readonly name = "PrivateModeError";
@@ -53,8 +57,8 @@ export function isModelInstalled(modelId: string) {
   return existsSync(join(modelInstallPath(modelId), "config.json"));
 }
 
-export function missingModels() {
-  return Object.values(WORKER_MODELS).filter(
+export function missingModels(models: Record<WorkerName, string>) {
+  return Object.values(models).filter(
     (modelId) => !isModelInstalled(modelId),
   );
 }
@@ -160,16 +164,23 @@ function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal) {
 
 export class PrivateWorkerManager {
   private readonly pythonDir: string;
+  private readonly models: Record<WorkerName, string>;
   private workers = new Map<WorkerName, WorkerHandle>();
   private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(pythonDir: string) {
+  constructor(pythonDir: string, ocrModel: string) {
     this.pythonDir = pythonDir;
+    this.models = workerModels(ocrModel);
+  }
+
+  /** Model ids this manager was constructed with (for status/install checks). */
+  modelIds(): Record<WorkerName, string> {
+    return { ...this.models };
   }
 
   status() {
-    return (Object.keys(WORKER_MODELS) as WorkerName[]).map((name) => {
-      const modelId = WORKER_MODELS[name];
+    return (Object.keys(this.models) as WorkerName[]).map((name) => {
+      const modelId = this.models[name];
       const worker = this.workers.get(name);
       return {
         name,
@@ -189,13 +200,13 @@ export class PrivateWorkerManager {
 
   /** Start both workers (if needed) and wait until both models are loaded. */
   async prewarm(signal?: AbortSignal) {
-    const missing = missingModels();
+    const missing = missingModels(this.models);
     if (missing.length > 0) {
       throw new PrivateModeError(installInstructions(missing));
     }
     try {
       await Promise.all(
-        (Object.keys(WORKER_MODELS) as WorkerName[]).map((name) =>
+        (Object.keys(this.models) as WorkerName[]).map((name) =>
           raceAbort(this.ensureWorker(name).loaded, signal),
         ),
       );
@@ -210,7 +221,7 @@ export class PrivateWorkerManager {
     if (existing && existing.status !== "failed") return existing;
     if (existing) this.stopWorker(existing);
 
-    const modelId = WORKER_MODELS[name];
+    const modelId = this.models[name];
     const modelPath = modelInstallPath(modelId);
     if (!isModelInstalled(modelId)) {
       throw new PrivateModeError(installInstructions([modelId]));

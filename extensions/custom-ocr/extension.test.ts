@@ -25,7 +25,7 @@ test("registers the parse-file tool, both command names, the toggle key, and bou
 
   assert.deepEqual(tools, new Set(["parse-file"]));
   assert.equal(toolExecutionMode, "sequential");
-  assert.deepEqual(commands, new Set(["private-image", "ocr"]));
+  assert.deepEqual(commands, new Set(["private-image", "ocr", "ocr-model"]));
   assert.deepEqual(shortcuts, new Set(["alt+o"]));
   assert.deepEqual(
     events,

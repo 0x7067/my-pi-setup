@@ -31,6 +31,16 @@ import {
   readModeFromBranch,
   type OcrMode,
 } from "./src/mode.ts";
+import {
+  DEFAULT_OCR_MODEL,
+  OCR_MODEL_IDS,
+  isOcrModelKind,
+  ocrModelPreferencePath,
+  parseOcrModelArgs,
+  persistDefaultOcrModel,
+  readDefaultOcrModel,
+  type OcrModelKind,
+} from "./src/ocr-model.ts";
 import { saveFullResult, type PageResult } from "./src/output.ts";
 import {
   executeParse,
@@ -90,13 +100,16 @@ export default function customOcr(pi: ExtensionAPI) {
   const extensionDir = dirname(fileURLToPath(import.meta.url));
   const pythonDir = join(extensionDir, "python");
   const modePreferencePath = preferencePath(resolve(extensionDir, "../.."));
+  const ocrModelPrefPath = ocrModelPreferencePath(resolve(extensionDir, "../.."));
 
   let mode: OcrMode = readDefaultMode(modePreferencePath);
+  let ocrModel: OcrModelKind = readDefaultOcrModel(ocrModelPrefPath);
   let runtime: OcrRuntime | undefined;
   let manager: PrivateWorkerManager | undefined;
 
   const getRuntime = () => (runtime ??= createRuntime());
-  const getManager = () => (manager ??= new PrivateWorkerManager(pythonDir));
+  const getManager = () =>
+    (manager ??= new PrivateWorkerManager(pythonDir, OCR_MODEL_IDS[ocrModel]));
 
   function setMode(next: OcrMode) {
     mode = next;
@@ -169,7 +182,7 @@ export default function customOcr(pi: ExtensionAPI) {
             : "weights not installed";
           lines.push(`${report.name}: ${report.modelId} — ${state}`);
         }
-        const missing = missingModels();
+        const missing = missingModels(getManager().modelIds());
         if (missing.length > 0) lines.push(installInstructions(missing));
         ctx.ui.notify(lines.join("\n"), "info");
         return;
@@ -186,7 +199,7 @@ export default function customOcr(pi: ExtensionAPI) {
       }
 
       if (action.mode === "private") {
-        const missing = missingModels();
+        const missing = missingModels(getManager().modelIds());
         if (missing.length > 0) {
           ctx.ui.notify(installInstructions(missing), "error");
           return;
@@ -194,7 +207,7 @@ export default function customOcr(pi: ExtensionAPI) {
         setMode("private");
         updateStatus(ctx);
         ctx.ui.notify(
-          "Private image mode ON — parse-file now runs fully local (DeepSeek-OCR → Qwen) and never calls hosted models. Prewarming workers…",
+          `Private image mode ON — parse-file now runs fully local (${OCR_MODEL_IDS[ocrModel]} → Qwen) and never calls hosted models. Prewarming workers…`,
           "info",
         );
         getManager()
@@ -230,13 +243,72 @@ export default function customOcr(pi: ExtensionAPI) {
     handler: (ctx) => commandOptions.handler(undefined, ctx),
   });
 
+  /**
+   * /ocr-model — choose which local OCR transcription model the private
+   * pipeline loads: glm (default) or deepseek (fallback). Switching unloads
+   * any running workers so the next parse picks up the new model.
+   */
+  pi.registerCommand("ocr-model", {
+    description: "Choose the local OCR model: glm (default) or deepseek (fallback)",
+    getArgumentCompletions: (prefix: string) => {
+      const items = ["glm", "deepseek", "status"]
+        .filter((value) => value.startsWith(prefix))
+        .map((value) => ({ value, label: value }));
+      return items.length > 0 ? items : null;
+    },
+    handler: async (args: string | undefined, ctx: ExtensionContext) => {
+      const action = parseOcrModelArgs(args, ocrModel);
+
+      if (action.action === "error") {
+        ctx.ui.notify(action.message, "error");
+        return;
+      }
+
+      if (action.action === "status") {
+        const lines = [
+          `ocr model: ${ocrModel} (${OCR_MODEL_IDS[ocrModel]})`,
+          `default: ${DEFAULT_OCR_MODEL}`,
+        ];
+        for (const report of getManager().status()) {
+          const state = report.installed
+            ? `${report.status}${report.port ? ` on 127.0.0.1:${report.port}` : ""}${report.error ? ` (${report.error})` : ""}`
+            : "weights not installed";
+          lines.push(`${report.name}: ${report.modelId} — ${state}`);
+        }
+        ctx.ui.notify(lines.join("\n"), "info");
+        return;
+      }
+
+      const next = action.kind;
+      if (next === ocrModel) {
+        ctx.ui.notify(`OCR model is already ${next} (${OCR_MODEL_IDS[next]}).`, "info");
+        return;
+      }
+
+      if (!isOcrModelKind(next)) {
+        ctx.ui.notify(`Invalid OCR model: ${next}`, "error");
+        return;
+      }
+
+      // Unload any running workers: they were spawned with the old model id.
+      manager?.stopAll();
+      manager = undefined;
+      ocrModel = next;
+      persistDefaultOcrModel(ocrModelPrefPath, next);
+      ctx.ui.notify(
+        `OCR model set to ${next} (${OCR_MODEL_IDS[next]}). Takes effect on the next private parse.`,
+        "info",
+      );
+    },
+  });
+
   pi.registerTool<typeof parseFileParameters, ParseFileDetails>({
     name: "parse-file",
     label: "Parse File",
     description: [
       "Parse an image (PNG, JPEG, WebP, GIF, TIFF) or PDF from disk and return its text and visual structure, optionally answering a question about it.",
       `PDFs and multi-page TIFFs are processed up to ${MAX_PAGES} pages per call (use pages {start,end} to select a range).`,
-      "Uses GPT-5.6 Luna by default; after /private-image on it runs a fully local DeepSeek-OCR → Qwen pipeline that never sends file contents to any network service.",
+      "Uses GPT-5.6 Luna by default; after /private-image on it runs a fully local OCR → Qwen pipeline (OCR model via /ocr-model: glm by default, deepseek fallback) that never sends file contents to any network service.",
     ].join(" "),
     promptSnippet:
       "Extract text/structure from an image or PDF, or answer a question about it",
@@ -302,11 +374,11 @@ export default function customOcr(pi: ExtensionAPI) {
           });
         },
         runPrivate: async (doc, question) => {
-          const missing = missingModels();
+          const workers = getManager();
+          const missing = missingModels(workers.modelIds());
           if (missing.length > 0) {
             throw new PrivateModeError(installInstructions(missing));
           }
-          const workers = getManager();
           const results: PageResult[] = [];
           for (const page of doc.pages) {
             progress(

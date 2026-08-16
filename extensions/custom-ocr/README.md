@@ -51,6 +51,24 @@ parse-file report.pdf                pages={start: 3, end: 7}
 /private-image status    # mode, worker health, models
 ```
 
+## `/ocr-model`
+
+```text
+/ocr-model status        # current OCR model + worker health
+/ocr-model glm           # GLM-OCR (default) — more accurate on noisy/degraded scans
+/ocr-model deepseek      # DeepSeek-OCR-2 — smaller original fallback
+```
+
+The local pipeline's transcription model is selectable: **GLM-OCR-4bit**
+(`mlx-community/GLM-OCR-4bit`, 1.2 GB) is the default — it beat DeepSeek-OCR-2
+on degraded scans in a head-to-head (correct digits, artist names, and city
+names where DeepSeek dropped/inserted letters) at half the size.
+DeepSeek-OCR-2 (`mlx-community/DeepSeek-OCR-2-4bit`) stays available as a
+fallback. Switching unloads running workers so the next private parse loads the
+new model; the choice is sticky in `<agent>/config/custom-ocr-model`
+(`echo glm > ~/.pi/agent/config/custom-ocr-model`). The Qwen fusion model is
+unchanged.
+
 Three ways to reach the same toggle, whichever is closest to hand:
 
 | Way | Does |
@@ -85,10 +103,13 @@ Private mode is fail-closed: workers run with `HF_HUB_OFFLINE=1` and only
 load weights that already exist locally. Download them once, ahead of time:
 
 ```bash
-uv tool run --from huggingface_hub hf download mlx-community/DeepSeek-OCR-2-4bit \
-  --local-dir ~/.cache/custom-ocr/models/DeepSeek-OCR-2-4bit
+uv tool run --from huggingface_hub hf download mlx-community/GLM-OCR-4bit \
+  --local-dir ~/.cache/custom-ocr/models/GLM-OCR-4bit
 uv tool run --from huggingface_hub hf download mlx-community/Qwen3.5-4B-MLX-4bit \
   --local-dir ~/.cache/custom-ocr/models/Qwen3.5-4B-MLX-4bit
+# fallback OCR model (only if you switch with /ocr-model deepseek):
+uv tool run --from huggingface_hub hf download mlx-community/DeepSeek-OCR-2-4bit \
+  --local-dir ~/.cache/custom-ocr/models/DeepSeek-OCR-2-4bit
 ```
 
 (`/private-image on` and `status` print these commands when weights are

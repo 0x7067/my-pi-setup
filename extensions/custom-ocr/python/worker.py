@@ -20,23 +20,36 @@ import argparse
 import hmac
 import json
 import os
+import queue
 import sys
 import tempfile
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 STATE = {"status": "loading", "error": None}
 MODEL = {}
-INFERENCE_LOCK = threading.Lock()
 TOKEN = ""
+
+# All inference (load + generate) runs on a single dedicated thread. MLX GPU
+# streams are thread-bound: some models (e.g. GLM-OCR) throw "no Stream(gpu, 1)
+# in current thread" when generated from a different thread than the one that
+# loaded them. Requests are serialized through REQUEST_QUEUE; each carries a
+# threading.Event the HTTP handler waits on. This preserves the
+# "one inference at a time" contract the old INFERENCE_LOCK provided.
+REQUEST_QUEUE: "queue.Queue[tuple[int, dict]]" = queue.Queue()
+RESPONSES: dict[int, tuple[str, str | None]] = {}
+RESPONSE_COND = threading.Condition()
+NEXT_REQUEST_ID = 0
 
 
 def emit(event: dict) -> None:
     print(json.dumps(event), flush=True)
 
 
-def load_model(model_path: str) -> None:
+def inference_loop(model_path: str) -> None:
+    """Load the model, then serve generations forever on this same thread."""
     try:
         from mlx_vlm import load
         from mlx_vlm.utils import load_config
@@ -56,6 +69,17 @@ def load_model(model_path: str) -> None:
         STATE["error"] = f"{type(error).__name__}: {error}"
         emit({"event": "error", "message": STATE["error"]})
         os._exit(1)
+
+    while True:
+        request_id, body = REQUEST_QUEUE.get()
+        try:
+            text = run_generate(body)
+            result = ("ok", text)
+        except Exception as error:  # noqa: BLE001 - surfaced as HTTP 500
+            result = ("error", f"{type(error).__name__}: {error}")
+        with RESPONSE_COND:
+            RESPONSES[request_id] = result
+            RESPONSE_COND.notify_all()
 
 
 def validated_image_path(raw_path: str) -> str:
@@ -153,15 +177,31 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as error:
                 self._reply(400, {"error": str(error)})
                 return
-            with INFERENCE_LOCK:
-                text = run_generate(body)
-            self._reply(200, {"text": text})
+            with RESPONSE_COND:
+                # Claim a request id, enqueue the job, then wait for the
+                # inference thread to produce a response.
+                global NEXT_REQUEST_ID
+                request_id = NEXT_REQUEST_ID
+                NEXT_REQUEST_ID += 1
+                REQUEST_QUEUE.put((request_id, body))
+                deadline = time.monotonic() + 600
+                while request_id not in RESPONSES:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        self._reply(504, {"error": "generate timed out"})
+                        return
+                    RESPONSE_COND.wait(remaining)
+                status, text = RESPONSES.pop(request_id)
+            if status == "ok":
+                self._reply(200, {"text": text})
+            else:
+                self._reply(500, {"error": text})
         except BrokenPipeError:
             pass
         except Exception as error:  # noqa: BLE001 - surfaced to the extension
             self._reply(500, {"error": f"{type(error).__name__}: {error}"})
 
-    def log_message(self, *_args):  # silence request logging
+    def log_message(self, *args):  # silence request logging
         pass
 
 
@@ -183,7 +223,8 @@ def main() -> None:
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     emit({"event": "listening", "port": server.server_address[1]})
 
-    threading.Thread(target=load_model, args=(args.model,), daemon=True).start()
+    # Single inference thread owns load + all generations (MLX stream binding).
+    threading.Thread(target=inference_loop, args=(args.model,), daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
