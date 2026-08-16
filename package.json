@@ -2,9 +2,9 @@
   "name": "pi-agent-config",
   "private": true,
   "dependencies": {
-    "@earendil-works/pi-ai": "0.84.1",
-    "@earendil-works/pi-coding-agent": "0.84.1",
-    "@earendil-works/pi-tui": "0.84.1",
+    "@earendil-works/pi-ai": "0.84.2",
+    "@earendil-works/pi-coding-agent": "0.84.2",
+    "@earendil-works/pi-tui": "0.84.2",
     "@sting8k/pi-vcc": "0.3.18",
     "@tintinweb/pi-tasks": "0.7.2",
     "acorn": "^8.17.0",
