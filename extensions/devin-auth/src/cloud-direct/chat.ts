@@ -777,13 +777,14 @@ export interface CloudChatRequest {
 }
 
 export class CloudChatError extends Error {
-  constructor(
-    message: string,
-    public readonly code?: string,
-    public readonly traceId?: string,
-  ) {
+  readonly code?: string;
+  readonly traceId?: string;
+
+  constructor(message: string, code?: string, traceId?: string) {
     super(message);
     this.name = "CloudChatError";
+    this.code = code;
+    this.traceId = traceId;
   }
 }
 

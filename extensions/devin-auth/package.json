@@ -12,14 +12,14 @@
   },
   "scripts": {
     "check": "tsc --noEmit -p .",
-    "test": "node --experimental-loader ./test-loader.mjs --test --experimental-transform-types session-ids.test.ts provider-cache.test.ts"
+    "test": "node --experimental-loader ./test-loader.mjs --test session-ids.test.ts provider-cache.test.ts"
   },
   "devDependencies": {
     "@effect/tsgo": "^0.24.2",
     "typescript": "^7.0.2"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "0.84.1",
-    "@earendil-works/pi-coding-agent": "0.84.1"
+    "@earendil-works/pi-ai": "0.84.2",
+    "@earendil-works/pi-coding-agent": "0.84.2"
   }
 }

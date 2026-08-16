@@ -242,10 +242,14 @@ export function clearCachedCatalog(): void {
  * "an internal error occurred" trailer.
  */
 export class ModelNotAvailableError extends Error {
+  readonly modelUid: string;
+  readonly label: string;
+  readonly reason: "disabled" | "not_listed";
+
   constructor(
-    public readonly modelUid: string,
-    public readonly label: string,
-    public readonly reason: "disabled" | "not_listed",
+    modelUid: string,
+    label: string,
+    reason: "disabled" | "not_listed",
   ) {
     super(
       reason === "disabled"
@@ -259,5 +263,8 @@ export class ModelNotAvailableError extends Error {
             `Run \`curl http://127.0.0.1:42100/v1/models\` to see the canonical names your plan accepts.`,
     );
     this.name = "ModelNotAvailableError";
+    this.modelUid = modelUid;
+    this.label = label;
+    this.reason = reason;
   }
 }
