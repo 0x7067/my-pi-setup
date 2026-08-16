@@ -1,8 +1,8 @@
 {
   "lastChangelogVersion": "0.84.1",
   "theme": "deep-space",
-  "defaultProvider": "kimi-coding",
-  "defaultModel": "k3-256k",
+  "defaultProvider": "synthetic",
+  "defaultModel": "syn:large:text",
   "defaultThinkingLevel": "high",
   "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
