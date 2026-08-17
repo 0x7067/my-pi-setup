@@ -72,7 +72,12 @@ if (settings.compaction?.enabled !== true) {
   failures.push("automatic compaction is not enabled");
 }
 
-for (const source of settings.packages ?? []) {
+for (const entry of settings.packages ?? []) {
+  const source = typeof entry === "string" ? entry : entry.source;
+  if (typeof source !== "string") {
+    failures.push(`package entry has no source: ${JSON.stringify(entry)}`);
+    continue;
+  }
   if (source.startsWith("npm:")) {
     const spec = source.slice("npm:".length);
     const separator = spec.lastIndexOf("@");
