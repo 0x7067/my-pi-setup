@@ -9,9 +9,10 @@ what was changed, and which levers stay opt-in.
 
 The setup already reuses 89–99% of prompt tokens on every measured
 provider. The remaining losses are provider-side (cache-node eviction on
-Synthetic and Devin) or structural (compaction, model switches). One config
-change was applied: OpenRouter session-affinity headers in `models.json`.
-Everything else is documented below as an opt-in lever with its tradeoff.
+Synthetic and Devin) or structural (compaction, model switches). Applied: scoped
+long cache retention for OpenRouter and Anthropic, an xAI affinity header
+(`extensions/prompt-cache.ts`), and OpenRouter session-affinity headers in
+`models.json`. Levers left as-is are listed with their tradeoff.
 
 ## Measured baseline
 
@@ -92,42 +93,43 @@ written only to TUI widgets. The remaining event-gated cache breaks are:
 The `stats` extension already warns when a stable payload falls below 80%
 reuse (`/stats prompt`) and `/stats summary` reports reuse per model.
 
-## Applied change
+## Applied changes
 
-`models.json` sets `providers.openrouter.compat.sendSessionAffinityHeaders:
-true`. That file is machine-local (gitignored), so re-apply the setting on a
-new machine. Pi then sends `x-session-id` (the session ID) with OpenRouter requests,
-so OpenRouter can pin the whole session to the same upstream endpoint instead
-of relying on its first-message hash. The header format is documented in Pi's
-`docs/models.md` (`sessionAffinityFormat: "openrouter"`), and OpenRouter's
-caching guide documents sticky routing by session ID. It is a header only: the
-request body is unchanged.
+- `extensions/prompt-cache.ts` overrides the OpenRouter and Anthropic
+  providers' `streamSimple` to pass `cacheRetention: "long"` (unless a caller
+  such as compaction passes `none`). Pi then emits `cache_control.ttl: "1h"`
+  for Anthropic-format requests and `prompt_cache_key` plus
+  `prompt_cache_retention: "24h"` for OpenAI-format requests, for those two
+  providers only. This is the scoped form of `PI_CACHE_RETENTION=long`, which
+  is process-global and would also reach DeepSeek, Kimi, and Synthetic; Pi's
+  changelog (#7676) records providers rejecting `prompt_cache_retention`, and
+  the Synthetic extension's model definitions override `models.json` compat,
+  so the env var cannot be gated. The 1h Anthropic TTL costs 2× on cache
+  writes instead of 1.25× and keeps the prefix alive across idle gaps under an
+  hour; the OpenAI 24h retention has no extra cost. Verified against a local
+  fake endpoint: OpenRouter `anthropic/*` requests carry
+  `{"type":"ephemeral","ttl":"1h"}`, OpenRouter `openai/*` requests carry the
+  key and retention, and DeepSeek requests carry none of these fields.
+- The same extension sends xAI's `x-grok-conv-id` header (session ID) so
+  Grok requests keep cache affinity, as xAI's caching guide recommends.
+- `models.json` sets `providers.openrouter.compat.sendSessionAffinityHeaders:
+true`. Pi then sends `x-session-id` (the session ID) with OpenRouter
+  requests, so OpenRouter can pin the whole session to the same upstream
+  endpoint instead of relying on its first-message hash. That file is
+  machine-local (gitignored), so re-apply the setting on a new machine.
 
-## Opt-in levers not applied
+## Levers left as-is
 
-- `PI_CACHE_RETENTION=long` (process env var; no settings key). Effect:
-  Anthropic-format requests get `cache_control.ttl: "1h"` (2× write price
-  instead of 1.25×, cache survives idle gaps up to an hour) and OpenAI
-  Chat/Responses requests get `prompt_cache_key` plus
-  `prompt_cache_retention: "24h"` (same price). Not applied because it is
-  global: with the default compat every OpenAI-compatible provider also
-  receives `prompt_cache_retention`, and Pi's changelog (#7676) records at
-  least one provider rejecting that field. Synthetic, the largest paid
-  provider here, is registered by an extension, so `models.json` compat
-  cannot gate it. Enable it only after confirming Synthetic, Kimi, and
-  DeepSeek accept the field, or after adding
-  `compat.supportsLongCacheRetention: false` for every built-in provider that
-  should not receive it. Value today is low: OpenRouter and direct Anthropic
-  traffic is zero in the logs.
-- xAI `x-grok-conv-id` header. xAI recommends it for cache affinity. Pi does
-  not send it; a `before_provider_headers` extension could. Zero xAI traffic
-  in the logs.
-- Disabling `webSearch` in `extensions/synthetic.json` removes the turn-2
-  activation race and one tool from the prefix, at the cost of the
-  `synthetic_web_search` tool. Data shows the race is not costing anything.
+- `webSearch` in `extensions/synthetic.json` stays enabled. Disabling it would
+  remove the turn-2 activation race and one tool from the prefix, but the data
+  shows turn-2 loss on Synthetic is 0.8% and the tool is in use.
 - Compaction thresholds (`compaction.reserveTokens` 16384,
-  `compaction.keepRecentTokens` 20000). Lowering `reserveTokens` delays
-  compaction; it does not remove the break.
+  `compaction.keepRecentTokens` 20000) stay at defaults. Lowering
+  `reserveTokens` delays compaction; it does not remove the break.
+- Kimi (`kimi-coding`, Anthropic-format) does not get the 1h TTL: Moonshot's
+  caching is automatic and acceptance of `cache_control.ttl` is undocumented.
+  Add `"kimi-coding": "anthropic-messages"` to `LONG_RETENTION_PROVIDERS`
+  after confirming.
 
 ## Provider cheat sheet
 

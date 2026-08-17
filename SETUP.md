@@ -35,8 +35,9 @@ documented in [`extensions/devin-auth/README.md`](extensions/devin-auth/README.m
 
 Provider prompt caches depend on a byte-stable prefix (system prompt, tools,
 earlier messages). The measured baseline, the runtime and extension invariants
-that keep the prefix stable, the applied `models.json` change, and the opt-in
-levers (`PI_CACHE_RETENTION=long`, xAI affinity header) are documented in
+that keep the prefix stable, and the applied levers (`extensions/prompt-cache.ts`
+for scoped long retention and the xAI affinity header, `models.json` OpenRouter
+session affinity) are documented in
 [`docs/research/prompt-caching.md`](docs/research/prompt-caching.md). Check
 `/stats prompt` after changing extensions or settings; a stable payload with
 reuse under 80% is a regression.
