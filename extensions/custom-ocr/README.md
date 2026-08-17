@@ -6,7 +6,7 @@ One tool — `parse-file(path, question?, pages?)` — with two backends:
   `openai-codex/gpt-5.6-luna` through Pi's existing model registry and OAuth
   (no extra SDK or credentials).
 - **Private (`/private-image`):** a fail-closed, fully local pipeline.
-  DeepSeek-OCR transcribes each page on MLX, then Qwen fuses the page image,
+  GLM-OCR transcribes each page on MLX, then Qwen fuses the page image,
   the OCR evidence, and your question into the final answer. Private mode
   never calls Luna, never downloads weights, and never falls back to any
   network service.
@@ -18,7 +18,7 @@ parse-file(path, question?, pages?)
         ├─ rasterize locally (PyMuPDF + Pillow → PNG pages)
         │
         ├─ default mode ──► GPT-5.6 Luna via Pi OAuth
-        └─ private mode ──► DeepSeek-OCR ──► Qwen (image + OCR + question)
+        └─ private mode ──► GLM-OCR ──► Qwen (image + OCR + question)
 ```
 
 ## Usage
@@ -51,23 +51,11 @@ parse-file report.pdf                pages={start: 3, end: 7}
 /private-image status    # mode, worker health, models
 ```
 
-## `/ocr-model`
-
-```text
-/ocr-model status        # current OCR model + worker health
-/ocr-model glm           # GLM-OCR (default) — more accurate on noisy/degraded scans
-/ocr-model deepseek      # DeepSeek-OCR-2 — smaller original fallback
-```
-
-The local pipeline's transcription model is selectable: **GLM-OCR-4bit**
-(`mlx-community/GLM-OCR-4bit`, 1.2 GB) is the default — it beat DeepSeek-OCR-2
-on degraded scans in a head-to-head (correct digits, artist names, and city
-names where DeepSeek dropped/inserted letters) at half the size.
-DeepSeek-OCR-2 (`mlx-community/DeepSeek-OCR-2-4bit`) stays available as a
-fallback. Switching unloads running workers so the next private parse loads the
-new model; the choice is sticky in `<agent>/config/custom-ocr-model`
-(`echo glm > ~/.pi/agent/config/custom-ocr-model`). The Qwen fusion model is
-unchanged.
+The private pipeline's transcription model is **GLM-OCR-4bit**
+(`mlx-community/GLM-OCR-4bit`, 1.2 GB) — chosen over DeepSeek-OCR-2 in a
+head-to-head on degraded scans (correct digits, artist names, and city names
+where DeepSeek dropped or inserted letters) at half the size. The Qwen fusion
+model is unchanged. The pipeline needs no per-parse model choice.
 
 Three ways to reach the same toggle, whichever is closest to hand:
 
@@ -107,9 +95,6 @@ uv tool run --from huggingface_hub hf download mlx-community/GLM-OCR-4bit \
   --local-dir ~/.cache/custom-ocr/models/GLM-OCR-4bit
 uv tool run --from huggingface_hub hf download mlx-community/Qwen3.5-4B-MLX-4bit \
   --local-dir ~/.cache/custom-ocr/models/Qwen3.5-4B-MLX-4bit
-# fallback OCR model (only if you switch with /ocr-model deepseek):
-uv tool run --from huggingface_hub hf download mlx-community/DeepSeek-OCR-2-4bit \
-  --local-dir ~/.cache/custom-ocr/models/DeepSeek-OCR-2-4bit
 ```
 
 (`/private-image on` and `status` print these commands when weights are

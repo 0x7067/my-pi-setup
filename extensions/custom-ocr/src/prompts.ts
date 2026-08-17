@@ -1,6 +1,6 @@
 /**
  * Prompts for both backends. Kept in one place so the default-mode (Luna)
- * and private-mode (DeepSeek-OCR → Qwen) pipelines describe results the same
+ * and private-mode (GLM-OCR → Qwen) pipelines describe results the same
  * way.
  */
 
@@ -27,9 +27,9 @@ export function lunaUserPrompt(
 }
 
 /**
- * Prompt for the DeepSeek-OCR transcription pass (one page at a time).
- * DeepSeek-OCR is prompt-sensitive: verbose instructions make it emit
- * nothing. This is its canonical document-transcription prompt.
+ * Prompt for the OCR transcription pass (one page at a time).
+ * OCR models are prompt-sensitive: verbose instructions make them emit
+ * nothing. This is the canonical document-transcription prompt.
  */
 export const OCR_PROMPT = "Convert the document to markdown.";
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  DEEPSEEK_OCR_MODEL,
+  GLM_OCR_MODEL,
   MODELS_DIR,
   QWEN_FUSION_MODEL,
   buildWorkerEnv,
@@ -20,14 +20,14 @@ test("buildWorkerEnv forces offline operation and carries the token", () => {
 });
 
 test("modelInstallPath places snapshots in the durable cache", () => {
-  const path = modelInstallPath(DEEPSEEK_OCR_MODEL);
+  const path = modelInstallPath(GLM_OCR_MODEL);
   assert.ok(path.startsWith(MODELS_DIR));
-  assert.ok(path.endsWith("DeepSeek-OCR-2-4bit"));
+  assert.ok(path.endsWith("GLM-OCR-4bit"));
 });
 
 test("installInstructions names each missing model and its target path", () => {
-  const text = installInstructions([DEEPSEEK_OCR_MODEL, QWEN_FUSION_MODEL]);
-  assert.match(text, /hf download mlx-community\/DeepSeek-OCR-2-4bit/);
+  const text = installInstructions([GLM_OCR_MODEL, QWEN_FUSION_MODEL]);
+  assert.match(text, /hf download mlx-community\/GLM-OCR-4bit/);
   assert.match(text, /hf download mlx-community\/Qwen3\.5-4B-MLX-4bit/);
   assert.match(text, /never touches the network/);
 });
