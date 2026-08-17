@@ -87,16 +87,16 @@ export interface ParseFileDetails {
 }
 
 export default function customOcr(pi: ExtensionAPI) {
-const extensionDir = dirname(fileURLToPath(import.meta.url));
-const pythonDir = join(extensionDir, "python");
-const modePreferencePath = preferencePath(resolve(extensionDir, "../.."));
+	const extensionDir = dirname(fileURLToPath(import.meta.url));
+	const pythonDir = join(extensionDir, "python");
+	const modePreferencePath = preferencePath(resolve(extensionDir, "../.."));
 
-let mode: OcrMode = readDefaultMode(modePreferencePath);
-let runtime: OcrRuntime | undefined;
-let manager: PrivateWorkerManager | undefined;
+	let mode: OcrMode = readDefaultMode(modePreferencePath);
+	let runtime: OcrRuntime | undefined;
+	let manager: PrivateWorkerManager | undefined;
 
-const getRuntime = () => (runtime ??= createRuntime());
-const getManager = () => (manager ??= new PrivateWorkerManager(pythonDir));
+	const getRuntime = () => (runtime ??= createRuntime());
+	const getManager = () => (manager ??= new PrivateWorkerManager(pythonDir));
 
 	function setMode(next: OcrMode) {
 		mode = next;

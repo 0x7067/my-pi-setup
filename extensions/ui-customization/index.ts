@@ -196,6 +196,17 @@ function columns(left: string, right: string, width: number) {
   );
 }
 
+function sameStatuses(
+  previous: ReadonlyMap<string, string>,
+  current: ReadonlyMap<string, string>,
+) {
+  if (previous.size !== current.size) return false;
+  for (const [key, value] of current) {
+    if (previous.get(key) !== value) return false;
+  }
+  return true;
+}
+
 export default function uiCustomization(pi: ExtensionAPI) {
   let title = "pi";
   let modelInfo = emptyModelInfoState();
@@ -232,13 +243,20 @@ export default function uiCustomization(pi: ExtensionAPI) {
   function install(ctx: ExtensionContext) {
     if (ctx.mode !== "tui") return;
 
+    const directoryLabel = formatDirectory(ctx.cwd);
+
     ctx.ui.setHeader((tui) => {
       activeTui = tui;
       requestRender = () => tui.requestRender();
       scheduleThemeRemoval(tui);
 
+      let cachedWidth: number | undefined;
+      let cachedLines: string[] | undefined;
+
       return {
         render(width: number) {
+          if (cachedWidth === width && cachedLines) return cachedLines;
+
           const masthead = columns(
             `${BOLD}${gradientText("pi", 0.18)}${RESET}${foreground(DIM, " · ")}${foreground(TEXT, title)}`,
             foreground(DIM, "session · interactive"),
@@ -247,19 +265,46 @@ export default function uiCustomization(pi: ExtensionAPI) {
           const art = TITLE_LINES.map((line, row) =>
             truncateToWidth(`  ${gradientText(line, row * 0.045)}`, width),
           );
-          return [masthead, "", ...art, ""];
+          cachedWidth = width;
+          cachedLines = [masthead, "", ...art, ""];
+          return cachedLines;
         },
-        invalidate() {},
+        invalidate() {
+          cachedWidth = undefined;
+          cachedLines = undefined;
+        },
       };
     });
 
     ctx.ui.setFooter((tui, theme, footerData: ReadonlyFooterDataProvider) => {
       requestRender = () => tui.requestRender();
 
+      const directory = theme.fg("text", directoryLabel);
+      let cached:
+        | {
+            width: number;
+            modelInfo: typeof modelInfo;
+            gitInfo: typeof gitInfo;
+            statuses: ReadonlyMap<string, string>;
+            lines: string[];
+          }
+        | undefined;
+
       return {
-        invalidate() {},
+        invalidate() {
+          cached = undefined;
+        },
         render(width: number) {
-          const directory = theme.fg("text", formatDirectory(ctx.cwd));
+          const statuses = footerData.getExtensionStatuses();
+          if (
+            cached?.width === width &&
+            cached.modelInfo === modelInfo &&
+            cached.gitInfo === gitInfo &&
+            sameStatuses(cached.statuses, statuses)
+          ) {
+            return cached.lines;
+          }
+
           const fileLabel = gitInfo.changedFiles === 1 ? "file" : "files";
           let git = gitInfo.branch
             ? `${gitInfo.branch} · ${gitInfo.changedFiles} ${fileLabel} changed`
@@ -293,7 +338,6 @@ export default function uiCustomization(pi: ExtensionAPI) {
           // Keep the footer at the same two-row height as Pi's startup footer.
           // Extension statuses arrive asynchronously, so fold them into the
           // telemetry row instead of adding rows that move the editor.
-          const statuses = footerData.getExtensionStatuses();
           const statusText = Array.from(statuses.entries())
             .sort(([a], [b]) => a.localeCompare(b))
             .flatMap(([, text]) => text.split("\n"))
@@ -303,7 +347,7 @@ export default function uiCustomization(pi: ExtensionAPI) {
             ? `${usage}${theme.fg("dim", " · ")}${statusText}`
             : usage;
 
-          return [
+          const lines = [
             columns(directory, theme.fg("muted", model), width),
             columns(
               theme.fg("muted", telemetry),
@@ -311,6 +355,14 @@ export default function uiCustomization(pi: ExtensionAPI) {
               width,
             ),
           ];
+          cached = {
+            width,
+            modelInfo,
+            gitInfo,
+            statuses: new Map(statuses),
+            lines,
+          };
+          return lines;
         },
       };
     });

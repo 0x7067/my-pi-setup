@@ -29,7 +29,7 @@
     "format:check": "prettier --check \"extensions/**/*.{ts,cjs,json}\" \"scripts/*.mjs\" \"package.json\" \"settings.json\" \"tsconfig.json\" \"README.md\" \"SETUP.md\"",
     "postinstall": "effect-tsgo patch",
     "privacy:harden": "node scripts/harden-private-state.mjs",
-    "test": "node --test --experimental-strip-types extensions/shared/*.test.ts extensions/workflows/*.test.ts && npm run test --workspaces --if-present",
+    "test": "node --test --experimental-strip-types extensions/shared/*.test.ts extensions/toolbox-lazy/*.test.ts extensions/workflows/*.test.ts && npm run test --workspaces --if-present",
     "test:live": "npm --workspace extensions/subagents run test:live"
   }
 }

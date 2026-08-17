@@ -1,9 +1,9 @@
 {
-  "configVersion": "0.24.3",
-  "webSearch": false,
+  "configVersion": "0.25.1",
+  "webSearch": true,
   "quotasCommand": true,
-  "usageStatus": false,
-  "quotaWarnings": false,
+  "usageStatus": true,
+  "quotaWarnings": true,
   "subBarIntegration": true,
   "proxyUrl": "",
   "proxyRequiresAuth": true

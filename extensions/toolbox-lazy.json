@@ -1,0 +1,49 @@
+{
+  "catalogs": [
+    {
+      "label": "Hound web research",
+      "summary": "Unauthenticated web search, page and PDF fetch, site crawl, screenshots, cache, and diagnostics",
+      "sourceIncludes": ["/extensions/hound-lazy.ts"]
+    },
+    {
+      "label": "Browser Relay",
+      "summary": "Direct Chrome tab control, navigation, accessibility snapshots, clicks, typing, screenshots, and DevTools",
+      "sourceIncludes": ["/extensions/browser-relay/"]
+    },
+    {
+      "label": "authenticated agent-browser automation",
+      "summary": "Open and read authenticated websites, click and fill forms, evaluate pages, take screenshots, and manage login handoffs",
+      "sourceIncludes": ["npm:@53able/pi-agent-browser@"]
+    },
+    {
+      "label": "workflows",
+      "summary": "Discover and run reusable multi-step workflows",
+      "sourceIncludes": ["/extensions/workflows/"]
+    },
+    {
+      "label": "subagents",
+      "summary": "Spawn, inspect, wait for, list, and cancel delegated agents",
+      "sourceIncludes": ["/extensions/subagents/"]
+    },
+    {
+      "label": "background terminals",
+      "summary": "Start, inspect, list, and stop long-running terminal processes",
+      "sourceIncludes": ["/extensions/background-terminals/"]
+    },
+    {
+      "label": "documents, OCR, tokens, and clipboard utilities",
+      "summary": "Parse images or documents, convert PDF or HTML, count or chunk tokens, and use the clipboard",
+      "sourceIncludes": ["/extensions/custom-ocr/", "/extensions/omp-natives/"]
+    },
+    {
+      "label": "session handoffs",
+      "summary": "Prepare compact context for continuing work in another session",
+      "sourceIncludes": ["/extensions/handoff/"]
+    },
+    {
+      "label": "project memory",
+      "summary": "Query recent project history, read or update durable memory pages, manage session handoffs, and maintain stored project knowledge",
+      "sourceIncludes": ["/extensions/ai-memory.ts"]
+    }
+  ]
+}

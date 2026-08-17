@@ -38,27 +38,48 @@ export default function modelInfo(pi: ExtensionAPI) {
   let runContentTokens = 0;
   let runContentStreamMs = 0;
   let lastLiveUpdate = 0;
+  let sessionCost = 0;
   let currentContext: ExtensionContext | undefined;
 
-  const publish = () => pi.events.emit(MODEL_INFO_CHANNEL, { ...state });
+  const setState = (next: typeof state, forcePublish = false) => {
+    if (
+      !forcePublish &&
+      state.provider === next.provider &&
+      state.modelId === next.modelId &&
+      state.modelName === next.modelName &&
+      state.thinking === next.thinking &&
+      state.contextTokens === next.contextTokens &&
+      state.contextWindow === next.contextWindow &&
+      state.contextPercent === next.contextPercent &&
+      state.cost === next.cost &&
+      state.tokensPerSecond === next.tokensPerSecond &&
+      state.generating === next.generating
+    ) {
+      return;
+    }
+    state = next;
+    pi.events.emit(MODEL_INFO_CHANNEL, { ...state });
+  };
 
-  function refresh(ctx: ExtensionContext) {
+  function refresh(ctx: ExtensionContext, forcePublish = false) {
     currentContext = ctx;
     const model = ctx.model;
     const usage = ctx.getContextUsage();
 
-    state = {
-      ...state,
-      provider: model?.provider ?? "",
-      modelId: model?.id ?? "no-model",
-      modelName: model?.name ?? model?.id ?? "No model",
-      thinking: model?.reasoning ? pi.getThinkingLevel() : "off",
-      contextTokens: usage?.tokens ?? null,
-      contextWindow: usage?.contextWindow ?? model?.contextWindow ?? 0,
-      contextPercent: usage?.percent ?? null,
-      cost: getSessionCost(ctx),
-    };
-    publish();
+    setState(
+      {
+        ...state,
+        provider: model?.provider ?? "",
+        modelId: model?.id ?? "no-model",
+        modelName: model?.name ?? model?.id ?? "No model",
+        thinking: model?.reasoning ? pi.getThinkingLevel() : "off",
+        contextTokens: usage?.tokens ?? null,
+        contextWindow: usage?.contextWindow ?? model?.contextWindow ?? 0,
+        contextPercent: usage?.percent ?? null,
+        cost: sessionCost,
+      },
+      forcePublish,
+    );
   }
 
   function resetMessageTracking() {
@@ -72,7 +93,9 @@ export default function modelInfo(pi: ExtensionAPI) {
   }
 
   const stopRefreshListener = pi.events.on(REFRESH_CHANNEL, () => {
-    if (currentContext) refresh(currentContext);
+    // The dashboard may have just installed a fresh subscriber, so replay
+    // current state even when none of its values changed.
+    if (currentContext) refresh(currentContext, true);
   });
 
   pi.on("session_start", (_event, ctx) => {
@@ -80,6 +103,7 @@ export default function modelInfo(pi: ExtensionAPI) {
     runContentTokens = 0;
     runContentStreamMs = 0;
     state = { ...state, tokensPerSecond: null, generating: false };
+    sessionCost = getSessionCost(ctx);
     refresh(ctx);
   });
 
@@ -96,8 +120,7 @@ export default function modelInfo(pi: ExtensionAPI) {
   });
 
   pi.on("thinking_level_select", (event) => {
-    state = { ...state, thinking: event.level };
-    publish();
+    setState({ ...state, thinking: event.level });
   });
 
   pi.on("agent_start", (_event, ctx) => {
@@ -148,16 +171,17 @@ export default function modelInfo(pi: ExtensionAPI) {
     }
     lastLiveUpdate = now;
 
-    state = {
+    setState({
       ...state,
       tokensPerSecond:
         estimateContentTokens(streamedCharacters) / (elapsedMs / 1000),
-    };
-    publish();
+    });
   });
 
   pi.on("message_end", (event, ctx) => {
     if (event.message.role !== "assistant") return;
+
+    sessionCost += event.message.usage.cost.total;
 
     sawToolCall ||= event.message.content.some(
       (block) => block.type === "toolCall",

@@ -6,12 +6,61 @@
  * ManagedRuntime.
  */
 
-import { Cause, Exit, Layer, ManagedRuntime, type Effect } from "effect";
-import { BackendRegistry, type SubagentBackend } from "./backend.ts";
-import { claudeBackend } from "./backends/claude.ts";
-import { codexBackend } from "./backends/codex.ts";
-import { piBackend } from "./backends/pi.ts";
-import type { BackendName } from "./domain.ts";
+import { Cause, Effect, Exit, Layer, ManagedRuntime } from "effect";
+import {
+  BackendRegistry,
+  type BackendCapabilities,
+  type SubagentBackend,
+} from "./backend.ts";
+import { SpawnError, type BackendName } from "./domain.ts";
+
+function lazyBackend(
+  name: BackendName,
+  capabilities: BackendCapabilities,
+  load: () => Promise<SubagentBackend>,
+): SubagentBackend {
+  let loaded: Promise<SubagentBackend> | undefined;
+  const get = () => (loaded ??= load());
+
+  return {
+    name,
+    capabilities,
+    available: Effect.tryPromise({
+      try: get,
+      catch: (error) =>
+        new SpawnError({
+          message: `Failed to load ${name} backend: ${error instanceof Error ? error.message : String(error)}`,
+        }),
+    }).pipe(
+      Effect.flatMap((backend) => backend.available),
+      Effect.orElseSucceed(() => false),
+    ),
+    spawn: (task) =>
+      Effect.tryPromise({
+        try: get,
+        catch: (error) =>
+          new SpawnError({
+            message: `Failed to load ${name} backend: ${error instanceof Error ? error.message : String(error)}`,
+          }),
+      }).pipe(Effect.flatMap((backend) => backend.spawn(task))),
+  };
+}
+
+const piBackend = lazyBackend(
+  "pi",
+  { steering: true, modelSelection: true, reasoningEffort: true },
+  () => import("./backends/pi.ts").then((module) => module.piBackend),
+);
+const claudeBackend = lazyBackend(
+  "claude",
+  { steering: true, modelSelection: true, reasoningEffort: true },
+  () => import("./backends/claude.ts").then((module) => module.claudeBackend),
+);
+const codexBackend = lazyBackend(
+  "codex",
+  { steering: false, modelSelection: true, reasoningEffort: true },
+  () => import("./backends/codex.ts").then((module) => module.codexBackend),
+);
 
 const BackendRegistryLive = Layer.sync(BackendRegistry, () => {
   const backends: SubagentBackend[] = [piBackend, claudeBackend, codexBackend];

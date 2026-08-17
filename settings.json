@@ -10,15 +10,16 @@
   "showCacheMissNotices": true,
   "steeringMode": "all",
   "followUpMode": "all",
-  "skills": [
-    "-/Users/pedro/.agents/skills/agent-browser"
-  ],
+  "skills": ["-/Users/pedro/.agents/skills/agent-browser"],
   "packages": [
     "npm:pi-lens@3.8.74",
     "npm:deepseek-peak-pricing-hours@0.1.1",
     "npm:@53able/pi-agent-browser@0.6.1",
-    "npm:@benvargas/pi-synthetic-provider@1.2.4",
-    "git:github.com/dondai44423/master-fetch@v13.1.2"
+    {
+      "source": "git:github.com/dondai44423/master-fetch@v13.1.2",
+      "extensions": []
+    },
+    "npm:@aliou/pi-synthetic@0.25.1"
   ],
   "treeFilterMode": "default",
   "compaction": {
