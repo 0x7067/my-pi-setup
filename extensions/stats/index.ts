@@ -52,23 +52,47 @@ export default function statsExtension(pi: ExtensionAPI) {
   let server: StatsServer | undefined;
   let starting: Promise<StatsServer> | undefined;
   let shuttingDown = false;
-  let previousProfile: PromptProfile | undefined;
+  const previousProfiles = new Map<string, PromptProfile>();
   let pendingProfile:
-    { profile: PromptProfile; stableWithPrevious: boolean } | undefined;
+    | {
+        profile: PromptProfile;
+        providerModel: string;
+        stableWithPrevious: boolean;
+      }
+    | undefined;
   let lastProfile: PromptProfile | undefined;
   let lastCache: CacheGuardResult | undefined;
   const seenProviderModels = new Set<string>();
+  const observedCacheModels = new Set<string>();
   const warnedStablePayloads = new Set<string>();
+
+  pi.on("session_start", () => {
+    previousProfiles.clear();
+    pendingProfile = undefined;
+    lastProfile = undefined;
+    lastCache = undefined;
+    seenProviderModels.clear();
+    observedCacheModels.clear();
+    warnedStablePayloads.clear();
+  });
 
   pi.on("message_end", recordCacheWriteProvenance);
 
-  pi.on("before_provider_request", (event) => {
+  pi.on("before_provider_request", (event, ctx) => {
     const profile = profileProviderPayload(event.payload);
+    const providerModel = ctx.model
+      ? `${ctx.model.provider}/${ctx.model.id}`
+      : `payload/${String(
+          (event.payload as { model?: unknown } | undefined)?.model ??
+            "unknown",
+        )}`;
     pendingProfile = {
       profile,
-      stableWithPrevious: previousProfile?.stableHash === profile.stableHash,
+      providerModel,
+      stableWithPrevious:
+        previousProfiles.get(providerModel)?.stableHash === profile.stableHash,
     };
-    previousProfile = profile;
+    previousProfiles.set(providerModel, profile);
     lastProfile = profile;
   });
 
@@ -76,10 +100,18 @@ export default function statsExtension(pi: ExtensionAPI) {
     if (event.message.role !== "assistant" || !pendingProfile) return;
     const message = event.message;
     const providerModel = `${message.provider}/${message.model}`;
-    const supportsCache = (ctx.model?.cost.cacheRead ?? 0) > 0;
+    const reportedCache =
+      message.usage.cacheRead > 0 ||
+      (message.usage as CacheWriteUsage).cacheWriteReported === true;
+    if (reportedCache) observedCacheModels.add(providerModel);
+    const supportsCache =
+      (ctx.model?.cost.cacheRead ?? 0) > 0 ||
+      observedCacheModels.has(providerModel);
     const cache = evaluateCacheGuard(message.usage, {
       hadPriorRequest: seenProviderModels.has(providerModel),
-      stablePayload: pendingProfile.stableWithPrevious,
+      stablePayload:
+        pendingProfile.providerModel === providerModel &&
+        pendingProfile.stableWithPrevious,
       supportsCache,
     });
     if (cache.reusableTokens > 0) seenProviderModels.add(providerModel);

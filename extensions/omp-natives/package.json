@@ -5,10 +5,12 @@
   "version": "0.1.0",
   "description": "Wraps @oh-my-pi/pi-natives (prebuilt Rust addon) as pi tools: local PDF->markdown, HTML->markdown, token counting, token-budgeted chunking, clipboard. Reuses the Rust impl; no reimplementation.",
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   },
   "scripts": {
-    "test": "node --test --experimental-strip-types chunk.test.ts"
+    "test": "node --test --experimental-strip-types chunk.test.ts tool.test.ts"
   },
   "dependencies": {
     "@oh-my-pi/pi-natives": "17.3.5",

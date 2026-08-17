@@ -14,7 +14,7 @@ import {
 } from "./backend.ts";
 import { SpawnError, type BackendName } from "./domain.ts";
 
-function lazyBackend(
+export function lazyBackend(
   name: BackendName,
   capabilities: BackendCapabilities,
   load: () => Promise<SubagentBackend>,
@@ -33,7 +33,10 @@ function lazyBackend(
         }),
     }).pipe(
       Effect.flatMap((backend) => backend.available),
-      Effect.orElseSucceed(() => false),
+      // `available` is intentionally infallible at the backend boundary. Keep
+      // lazy import failures observable as defects instead of misreporting a
+      // broken module as a normal unavailable installation.
+      Effect.orDie,
     ),
     spawn: (task) =>
       Effect.tryPromise({

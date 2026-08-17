@@ -44,3 +44,17 @@ test("reports command timeouts as failures", async () => {
   const result = await runNode("setTimeout(() => {}, 1_000)", 20);
   assert.equal(result.code, -1);
 });
+
+test("bounds captured stdout from commands with unbounded output", async () => {
+  const result = await runNode(
+    'process.stdout.write("x".repeat(11 * 1024 * 1024))',
+    2_000,
+  );
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /\[command output truncated\]/);
+  assert.ok(
+    result.stdout.length <=
+      10 * 1024 * 1024 + "\n[command output truncated]\n".length,
+  );
+});

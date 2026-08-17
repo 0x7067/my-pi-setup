@@ -38,3 +38,38 @@ test("an explicit refresh waits for an active background refresh", async () => {
   assert.equal(result, 2);
   assert.equal(state, 2);
 });
+
+test("runs only the newest background refresh after an active refresh", async () => {
+  const coordinator = makeRefreshCoordinator();
+  let releaseActive: (() => void) | undefined;
+  const activeRelease = new Promise<void>((resolve) => {
+    releaseActive = resolve;
+  });
+  const calls: string[] = [];
+  let markNewest: (() => void) | undefined;
+  const newestRan = new Promise<void>((resolve) => {
+    markNewest = resolve;
+  });
+
+  void coordinator.run(async () => {
+    await activeRelease;
+    calls.push("active");
+  });
+  assert.equal(
+    coordinator.runIfIdle(async () => {
+      calls.push("superseded");
+    }),
+    undefined,
+  );
+  assert.equal(
+    coordinator.runIfIdle(async () => {
+      calls.push("newest");
+      markNewest?.();
+    }),
+    undefined,
+  );
+
+  releaseActive?.();
+  await newestRan;
+  assert.deepEqual(calls, ["active", "newest"]);
+});

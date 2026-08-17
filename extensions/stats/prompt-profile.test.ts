@@ -61,6 +61,22 @@ test("stability ignores conversation growth but detects prompt and tool changes"
   assert.notEqual(initial.stableHash, changedPrompt.stableHash);
 });
 
+test("stability includes cache-affinity fields", () => {
+  const first = profileProviderPayload({
+    model: "test-model",
+    prompt_cache_key: "session-a",
+    messages: [{ role: "system", content: "stable" }],
+    tools: [],
+  });
+  const second = profileProviderPayload({
+    model: "test-model",
+    prompt_cache_key: "session-b",
+    messages: [{ role: "system", content: "stable" }],
+    tools: [],
+  });
+  assert.notEqual(first.stableHash, second.stableHash);
+});
+
 test("profiles Anthropic root system prompts", () => {
   const profile = profileProviderPayload({
     model: "test-model",
@@ -72,6 +88,64 @@ test("profiles Anthropic root system prompts", () => {
   assert.ok(profile.systemBytes > 2);
   assert.equal(profile.messages, 1);
   assert.equal(profile.tools, 0);
+});
+
+test("profiles Responses and Google payload shapes", () => {
+  const responses = profileProviderPayload({
+    model: "responses-model",
+    instructions: "system",
+    input: [{ role: "user", content: "hello" }],
+    tools: [{ type: "function", name: "read" }],
+  });
+  assert.equal(responses.messages, 1);
+  assert.equal(responses.tools, 1);
+  assert.ok(responses.systemBytes > 2);
+
+  const google = profileProviderPayload({
+    model: "google-model",
+    systemInstruction: { parts: [{ text: "system" }] },
+    contents: [{ role: "user", parts: [{ text: "hello" }] }],
+    tools: [],
+  });
+  assert.equal(google.messages, 1);
+  assert.equal(google.tools, 0);
+  assert.ok(google.systemBytes > 2);
+});
+
+test("profile reports contain no prompt content and count UTF-8 bytes", () => {
+  const secret = "never-print-this-🔐";
+  const profile = profileProviderPayload({
+    model: "test",
+    messages: [{ role: "system", content: secret }],
+    tools: [],
+  });
+  const report = formatPromptProfile(profile);
+  assert.doesNotMatch(report, /never-print-this/);
+  assert.ok(profile.totalBytes > JSON.stringify({}).length);
+  assert.ok(profile.systemBytes > secret.length);
+});
+
+test("profiles large multimodal strings without serializing them into the report", () => {
+  const image = "A".repeat(2 * 1024 * 1024);
+  const profile = profileProviderPayload({
+    model: "vision",
+    messages: [
+      { role: "system", content: "stable" },
+      {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${image}` },
+          },
+        ],
+      },
+    ],
+    tools: [],
+  });
+  assert.ok(profile.totalBytes > 2 * 1024 * 1024);
+  assert.ok(profile.conversationBytes > 2 * 1024 * 1024);
+  assert.doesNotMatch(formatPromptProfile(profile), /AAAAA/);
 });
 
 test("cache guard warns only for large stable warm misses", () => {
@@ -148,6 +222,20 @@ test("cache guard accepts high reuse and accounts for reported writes", () => {
   );
   assert.equal(write.status, "healthy");
   assert.equal(write.reusableTokens, 9093);
+});
+
+test("cache guard normalizes malformed usage instead of emitting NaN", () => {
+  const result = evaluateCacheGuard(
+    { input: Number.NaN, cacheRead: Number.POSITIVE_INFINITY },
+    {
+      hadPriorRequest: true,
+      stablePayload: true,
+      supportsCache: true,
+    },
+  );
+  assert.equal(result.status, "small");
+  assert.equal(result.reusableTokens, 0);
+  assert.equal(result.cacheRate, null);
 });
 
 test("formats a compact prompt and cache report", () => {

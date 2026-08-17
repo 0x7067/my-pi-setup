@@ -9,7 +9,13 @@ import {
   type PullRequestInfo,
 } from "../shared/dashboard-state.ts";
 import { makeRefreshCoordinator } from "./src/refresh-coordinator.ts";
+import {
+  createRuntime,
+  runEffect,
+  type GitInfoRuntime,
+} from "./src/runtime.ts";
 import { parseGitStatus } from "./src/status.ts";
+import { runCommand } from "./src/process.ts";
 
 const POLL_INTERVAL_MS = 10_000;
 const GIT_TIMEOUT_MS = 3_000;
@@ -41,6 +47,7 @@ export default function gitInfo(pi: ExtensionAPI) {
   let pollingTimer: ReturnType<typeof setInterval> | undefined;
   let backgroundController: AbortController | undefined;
   let currentContext: ExtensionContext | undefined;
+  let runtime: GitInfoRuntime | undefined;
   let generation = 0;
   let queriedPrBranch: string | null = null;
   const refreshCoordinator = makeRefreshCoordinator();
@@ -66,12 +73,11 @@ export default function gitInfo(pi: ExtensionAPI) {
     timeout: number,
     signal?: AbortSignal,
   ) => {
-    const result = await pi.exec(command, args, {
-      cwd: ctx.cwd,
-      timeout,
+    runtime ??= createRuntime();
+    return runEffect(runtime, runCommand(command, args, ctx.cwd, timeout), {
       signal,
+      interruptMessage: `Running ${command} was cancelled.`,
     });
-    return { ...result, code: result.killed ? -1 : result.code };
   };
 
   const lookupPullRequest = async (
@@ -127,6 +133,7 @@ export default function gitInfo(pi: ExtensionAPI) {
           signal,
         );
     const shortHead = headResult?.stdout.trim() ?? "";
+    if (refreshGeneration !== generation) return;
     const branch =
       branchName || (shortHead ? `detached@${shortHead}` : "detached");
     const branchChanged = branchName !== queriedPrBranch;
@@ -160,6 +167,7 @@ export default function gitInfo(pi: ExtensionAPI) {
       refresh(ctx, false, refreshGeneration, signal),
     );
     void pending?.catch((error) => {
+      if (signal?.aborted) return;
       console.error("git-info background refresh failed", error);
     });
   };
@@ -201,6 +209,9 @@ export default function gitInfo(pi: ExtensionAPI) {
     currentContext = undefined;
     if (pollingTimer) clearInterval(pollingTimer);
     pollingTimer = undefined;
+    const activeRuntime = runtime;
+    runtime = undefined;
+    void activeRuntime?.dispose();
   });
 
   pi.registerCommand("lg", {
