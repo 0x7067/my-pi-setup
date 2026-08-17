@@ -4,7 +4,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   discoverCatalogTools,
   expandMatchingCatalogs,
+  formatCatalogActivation,
   searchCatalogTools,
+  TOOL_SEARCH_GUIDELINES,
   type CatalogConfig,
 } from "../toolbox-lazy.ts";
 
@@ -126,4 +128,21 @@ test("ranks exact tool metadata above broad catalog matches", () => {
     catalogs: ["Hound"],
     tools: ["web_fetch", "web_search"],
   });
+});
+
+test("activation output tells the model to use loaded tools directly", () => {
+  const message = formatCatalogActivation(
+    ["Hound web research"],
+    ["web_fetch", "web_search"],
+    true,
+  );
+  assert.match(message, /ready to use/);
+  assert.match(message, /web_fetch/);
+  assert.match(message, /do not install anything/);
+});
+
+test("routing guidance distinguishes capability loading from skill search", () => {
+  assert.match(TOOL_SEARCH_GUIDELINES[0] ?? "", /call tool_search/);
+  assert.match(TOOL_SEARCH_GUIDELINES[0] ?? "", /Hound web research/);
+  assert.match(TOOL_SEARCH_GUIDELINES[0] ?? "", /Do not use skill_search/);
 });

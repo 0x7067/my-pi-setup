@@ -7,6 +7,9 @@ import { Type } from "typebox";
 
 const LOADER_TOOL = "tool_search";
 const DEFAULT_LIMIT = 1;
+export const TOOL_SEARCH_GUIDELINES = [
+  "For unauthenticated web research, call tool_search with query 'Hound web research'. For authenticated Chrome or interactive page work, call tool_search with query 'Browser Relay'. Do not use skill_search for these capabilities.",
+];
 const IGNORED_TERMS = new Set([
   "a",
   "an",
@@ -124,6 +127,15 @@ export function expandMatchingCatalogs(
   };
 }
 
+export function formatCatalogActivation(
+  catalogs: string[],
+  tools: string[],
+  added: boolean,
+) {
+  const state = added ? "Loaded" : "Already active";
+  return `${state} ${catalogs.join(", ")} and ready to use: ${tools.join(", ")}. Call one of these tools directly; do not install anything.`;
+}
+
 export default function lazyToolbox(pi: ExtensionAPI) {
   let catalogTools: CatalogTool[] = [];
   const enabledCatalogs = new Set<string>();
@@ -170,9 +182,7 @@ export default function lazyToolbox(pi: ExtensionAPI) {
     description: `Search and activate specialized tools only when needed. The catalog covers ${labels}.`,
     promptSnippet:
       "Use tool_search when a task needs a specialized capability that is not active",
-    promptGuidelines: [
-      "For unauthenticated web research, search for Hound. For authenticated Chrome or interactive page work, search for Browser Relay.",
-    ],
+    promptGuidelines: TOOL_SEARCH_GUIDELINES,
     parameters: Type.Object({
       query: Type.String({
         minLength: 2,
@@ -211,10 +221,11 @@ export default function lazyToolbox(pi: ExtensionAPI) {
         content: [
           {
             type: "text" as const,
-            text:
-              added.length > 0
-                ? `Loaded ${selection.catalogs.join(", ")}: ${added.join(", ")}`
-                : `Matching catalogs already active: ${selection.catalogs.join(", ")}`,
+            text: formatCatalogActivation(
+              selection.catalogs,
+              selection.tools,
+              added.length > 0,
+            ),
           },
         ],
         details: { query, matches, catalogs: selection.catalogs, added },

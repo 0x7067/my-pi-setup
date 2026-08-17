@@ -5,6 +5,13 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import { StatsServer } from "./src/server.ts";
+import {
+  evaluateCacheGuard,
+  formatPromptProfile,
+  profileProviderPayload,
+  type CacheGuardResult,
+  type PromptProfile,
+} from "./src/prompt-profile.ts";
 import { collectStats, formatSummary } from "./src/stats.ts";
 
 const noParameters = Type.Object({});
@@ -45,8 +52,55 @@ export default function statsExtension(pi: ExtensionAPI) {
   let server: StatsServer | undefined;
   let starting: Promise<StatsServer> | undefined;
   let shuttingDown = false;
+  let previousProfile: PromptProfile | undefined;
+  let pendingProfile:
+    { profile: PromptProfile; stableWithPrevious: boolean } | undefined;
+  let lastProfile: PromptProfile | undefined;
+  let lastCache: CacheGuardResult | undefined;
+  const seenProviderModels = new Set<string>();
+  const warnedStablePayloads = new Set<string>();
 
   pi.on("message_end", recordCacheWriteProvenance);
+
+  pi.on("before_provider_request", (event) => {
+    const profile = profileProviderPayload(event.payload);
+    pendingProfile = {
+      profile,
+      stableWithPrevious: previousProfile?.stableHash === profile.stableHash,
+    };
+    previousProfile = profile;
+    lastProfile = profile;
+  });
+
+  pi.on("message_end", (event, ctx) => {
+    if (event.message.role !== "assistant" || !pendingProfile) return;
+    const message = event.message;
+    const providerModel = `${message.provider}/${message.model}`;
+    const supportsCache = (ctx.model?.cost.cacheRead ?? 0) > 0;
+    const cache = evaluateCacheGuard(message.usage, {
+      hadPriorRequest: seenProviderModels.has(providerModel),
+      stablePayload: pendingProfile.stableWithPrevious,
+      supportsCache,
+    });
+    if (cache.reusableTokens > 0) seenProviderModels.add(providerModel);
+    lastProfile = pendingProfile.profile;
+    lastCache = cache;
+    pendingProfile = undefined;
+
+    const warningKey = `${providerModel}:${lastProfile.stableHash}`;
+    if (cache.status === "healthy") warnedStablePayloads.delete(warningKey);
+    if (
+      cache.status === "warning" &&
+      !warnedStablePayloads.has(warningKey) &&
+      ctx.hasUI
+    ) {
+      warnedStablePayloads.add(warningKey);
+      ctx.ui.notify(
+        `Prompt cache regression for ${providerModel}: ${formatPromptProfile(lastProfile, cache)}`,
+        "warning",
+      );
+    }
+  });
 
   async function dashboard() {
     if (shuttingDown) throw new Error("Pi Stats is shutting down");
@@ -78,7 +132,7 @@ export default function statsExtension(pi: ExtensionAPI) {
   pi.registerCommand("stats", {
     description: "Show a local Pi usage summary or start the private dashboard",
     getArgumentCompletions: (prefix) => {
-      const options = ["dashboard", "summary"]
+      const options = ["dashboard", "summary", "prompt"]
         .filter((value) => value.startsWith(prefix))
         .map((value) => ({ value, label: value }));
       return options.length > 0 ? options : null;
@@ -92,8 +146,17 @@ export default function statsExtension(pi: ExtensionAPI) {
         );
         return;
       }
+      if (action === "prompt") {
+        ctx.ui.notify(
+          lastProfile
+            ? formatPromptProfile(lastProfile, lastCache)
+            : "No provider request has been profiled in this session yet",
+          "info",
+        );
+        return;
+      }
       if (action !== "dashboard") {
-        ctx.ui.notify("Usage: /stats [dashboard|summary]", "error");
+        ctx.ui.notify("Usage: /stats [dashboard|summary|prompt]", "error");
         return;
       }
       const running = await dashboard();

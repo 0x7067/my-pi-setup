@@ -34,6 +34,8 @@ extensions/summaries/config.private.json.*.tmp
 webui/
 webui-rpc-supervisor/
 extensions/*.bak-*
+extensions/.pi-agent-browser/
+state/pi-synthetic/quota-history/
 
 # Local editor settings
 .vscode/
