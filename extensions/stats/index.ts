@@ -13,6 +13,13 @@ import {
   type PromptProfile,
 } from "./src/prompt-profile.ts";
 import { collectStats, formatSummary } from "./src/stats.ts";
+import {
+  isWarningMode,
+  loadStatsWarningConfig,
+  privateConfigPath,
+  saveStatsWarningConfig,
+  WARNING_MODES,
+} from "./src/warning-config.ts";
 
 const noParameters = Type.Object({});
 
@@ -52,6 +59,7 @@ export default function statsExtension(pi: ExtensionAPI) {
   let server: StatsServer | undefined;
   let starting: Promise<StatsServer> | undefined;
   let shuttingDown = false;
+  const warningConfigPath = privateConfigPath();
   const previousProfiles = new Map<string, PromptProfile>();
   let pendingProfile:
     | {
@@ -63,8 +71,16 @@ export default function statsExtension(pi: ExtensionAPI) {
   let lastProfile: PromptProfile | undefined;
   let lastCache: CacheGuardResult | undefined;
   const seenProviderModels = new Set<string>();
+  const providerModelRequests = new Map<string, number>();
   const observedCacheModels = new Set<string>();
   const warnedStablePayloads = new Set<string>();
+  let warningMode = loadStatsWarningConfig(warningConfigPath).warningMode;
+  let consecutiveWarning:
+    | {
+        warningKey: string;
+        turns: number;
+      }
+    | undefined;
 
   pi.on("session_start", () => {
     previousProfiles.clear();
@@ -72,8 +88,11 @@ export default function statsExtension(pi: ExtensionAPI) {
     lastProfile = undefined;
     lastCache = undefined;
     seenProviderModels.clear();
+    providerModelRequests.clear();
     observedCacheModels.clear();
     warnedStablePayloads.clear();
+    warningMode = loadStatsWarningConfig(warningConfigPath).warningMode;
+    consecutiveWarning = undefined;
   });
 
   pi.on("message_end", recordCacheWriteProvenance);
@@ -104,6 +123,8 @@ export default function statsExtension(pi: ExtensionAPI) {
       message.usage.cacheRead > 0 ||
       (message.usage as CacheWriteUsage).cacheWriteReported === true;
     if (reportedCache) observedCacheModels.add(providerModel);
+    const requestCount = (providerModelRequests.get(providerModel) ?? 0) + 1;
+    providerModelRequests.set(providerModel, requestCount);
     const supportsCache =
       (ctx.model?.cost.cacheRead ?? 0) > 0 ||
       observedCacheModels.has(providerModel);
@@ -121,8 +142,24 @@ export default function statsExtension(pi: ExtensionAPI) {
 
     const warningKey = `${providerModel}:${lastProfile.stableHash}`;
     if (cache.status === "healthy") warnedStablePayloads.delete(warningKey);
+    if (cache.status === "warning") {
+      consecutiveWarning = {
+        warningKey,
+        turns:
+          consecutiveWarning?.warningKey === warningKey
+            ? consecutiveWarning.turns + 1
+            : 1,
+      };
+    } else {
+      consecutiveWarning = undefined;
+    }
+    const actionableWarning =
+      warningMode === "all" ||
+      ((consecutiveWarning?.turns ?? 0) >= 2 &&
+        (cache.reusableTokens >= 20_000 || requestCount >= 3));
     if (
       cache.status === "warning" &&
+      actionableWarning &&
       !warnedStablePayloads.has(warningKey) &&
       ctx.hasUI
     ) {
@@ -196,6 +233,30 @@ export default function statsExtension(pi: ExtensionAPI) {
         `Pi Stats is available while this Pi session is open:\n${running.url}`,
         "info",
       );
+    },
+  });
+
+  pi.registerCommand("stats-warnings", {
+    description: "Configure prompt-cache regression warning notifications",
+    getArgumentCompletions: (prefix) => {
+      const options = WARNING_MODES.filter((value) =>
+        value.startsWith(prefix),
+      ).map((value) => ({ value, label: value }));
+      return options.length > 0 ? options : null;
+    },
+    handler: async (args, ctx) => {
+      const mode = args.trim();
+      if (!mode) {
+        ctx.ui.notify(`Stats warning mode: ${warningMode}`, "info");
+        return;
+      }
+      if (!isWarningMode(mode)) {
+        ctx.ui.notify("Usage: /stats-warnings [all|actionable]", "error");
+        return;
+      }
+      await saveStatsWarningConfig({ warningMode: mode }, warningConfigPath);
+      warningMode = mode;
+      ctx.ui.notify(`Stats warning mode set to ${warningMode}`, "info");
     },
   });
 

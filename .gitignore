@@ -20,6 +20,8 @@ models-store.json
 *.sqlite-*
 extensions/summaries/config.private.json
 extensions/summaries/config.private.json.*.tmp
+extensions/stats/config.private.json
+extensions/stats/config.private.json.*.tmp
 
 # Environment variables and secrets
 .env

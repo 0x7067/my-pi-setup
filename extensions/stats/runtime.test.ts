@@ -1,10 +1,32 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import statsExtension from "./index.ts";
+import {
+  loadStatsWarningConfig,
+  saveStatsWarningConfig,
+} from "./src/warning-config.ts";
 
 type Handler = (event: any, context: any) => unknown;
 
-function harness() {
+function tempConfigPath() {
+  return join(
+    mkdtempSync(join(tmpdir(), "pi-stats-runtime-test-")),
+    "config.private.json",
+  );
+}
+
+function harness({ warningMode = "all" }: { warningMode?: string } = {}) {
+  const configPath = tempConfigPath();
+  process.env.PI_STATS_CONFIG_PATH = configPath;
+  if (warningMode !== "all") {
+    writeFileSync(configPath, `${JSON.stringify({ warningMode })}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+  }
   const handlers = new Map<string, Handler[]>();
   const commands = new Map<string, any>();
   const notifications: Array<{ message: string; type: string }> = [];
@@ -39,7 +61,7 @@ function harness() {
       await handler(value, ctx);
     }
   };
-  return { commands, context, emit, notifications };
+  return { commands, configPath, context, emit, notifications };
 }
 
 function payload({
@@ -300,6 +322,72 @@ test("observed telemetry enables the guard for zero-priced cache reads", async (
     freeCache,
   );
   assert.equal(runtime.notifications.length, 1);
+});
+
+test("actionable mode suppresses a single-turn miss", async () => {
+  const runtime = harness({ warningMode: "actionable" });
+  await request(runtime, payload());
+  await request(runtime, payload(), assistant({ input: 25_000 }));
+  assert.equal(runtime.notifications.length, 0);
+});
+
+test("actionable mode warns on the second consecutive miss", async () => {
+  const runtime = harness({ warningMode: "actionable" });
+  await request(runtime, payload());
+  await request(runtime, payload(), assistant({ input: 25_000 }));
+  await request(runtime, payload(), assistant({ input: 25_000 }));
+  assert.equal(runtime.notifications.length, 1);
+  assert.equal(runtime.notifications[0]?.type, "warning");
+});
+
+test("actionable mode suppresses a small-denominator early turn", async () => {
+  const runtime = harness({ warningMode: "actionable" });
+  await request(runtime, payload());
+  await request(runtime, payload(), assistant({ input: 10_000 }));
+  assert.equal(runtime.notifications.length, 0);
+});
+
+test("all warning mode reports the first stable warm miss", async () => {
+  const runtime = harness({ warningMode: "all" });
+  await request(runtime, payload());
+  await request(runtime, payload(), assistant({ input: 10_000 }));
+  assert.equal(runtime.notifications.length, 1);
+  assert.equal(runtime.notifications[0]?.type, "warning");
+});
+
+test("stats warning config round-trips and falls back for corrupt or partial config", async () => {
+  const configPath = tempConfigPath();
+  await saveStatsWarningConfig({ warningMode: "actionable" }, configPath);
+  assert.deepEqual(loadStatsWarningConfig(configPath), {
+    warningMode: "actionable",
+  });
+
+  writeFileSync(configPath, "{", "utf8");
+  assert.deepEqual(loadStatsWarningConfig(configPath), { warningMode: "all" });
+
+  writeFileSync(configPath, "{}\n", "utf8");
+  assert.deepEqual(loadStatsWarningConfig(configPath), { warningMode: "all" });
+});
+
+test("stats-warnings command reports and updates the warning mode", async () => {
+  const runtime = harness();
+  const command = runtime.commands.get("stats-warnings");
+  assert.ok(command);
+
+  await command.handler("", runtime.context);
+  assert.match(runtime.notifications.at(-1)?.message ?? "", /mode: all/);
+
+  await command.handler("actionable", runtime.context);
+  assert.deepEqual(loadStatsWarningConfig(runtime.configPath), {
+    warningMode: "actionable",
+  });
+  assert.match(
+    runtime.notifications.at(-1)?.message ?? "",
+    /set to actionable/,
+  );
+
+  await command.handler("", runtime.context);
+  assert.match(runtime.notifications.at(-1)?.message ?? "", /mode: actionable/);
 });
 
 test("stats prompt reports the last request and its cache outcome", async () => {
