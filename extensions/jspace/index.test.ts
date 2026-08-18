@@ -5,14 +5,19 @@ import jspaceMode, { usageFromMessages } from "./index.ts";
 import {
   METRICS_ENTRY_TYPE,
   MODE_ENTRY_TYPE,
+  OUTCOME_ENTRY_TYPE,
   STATE_ENTRY_TYPE,
 } from "./src/state.ts";
 
-function harness(flag?: string) {
+function harness(
+  flag?: string,
+  rateRun?: (options: { transcript: string }) => Promise<any>,
+) {
   const handlers = new Map<string, Array<(event: any, ctx: any) => any>>();
   const commands = new Map<string, any>();
   const tools = new Map<string, any>();
   const branch: any[] = [];
+  let nextId = 0;
   const notifications: Array<{ text: string; level: string }> = [];
   const statuses = new Map<string, string | undefined>();
   let activeTools = ["read", "jspace_checkpoint"];
@@ -29,7 +34,7 @@ function harness(flag?: string) {
       handlers.set(event, values);
     },
     appendEntry: (customType: string, data: unknown) =>
-      branch.push({ type: "custom", customType, data }),
+      branch.push({ id: String(++nextId), type: "custom", customType, data }),
     getActiveTools: () => [...activeTools],
     setActiveTools: (names: string[]) => {
       activeTools = [...names];
@@ -39,7 +44,11 @@ function harness(flag?: string) {
   const ctx = {
     mode: "print",
     model: { provider: "ollama", id: "qwen3.8-27b" },
-    sessionManager: { getBranch: () => branch },
+    sessionManager: {
+      getBranch: () => branch,
+      getLeafId: () => branch.at(-1)?.id ?? null,
+    },
+    modelRegistry: {},
     ui: {
       setStatus: (key: string, value: string | undefined) =>
         statuses.set(key, value),
@@ -56,7 +65,14 @@ function harness(flag?: string) {
     return result;
   };
 
-  jspaceMode(pi);
+  jspaceMode(pi, {
+    rateRun: rateRun as any,
+    loadRaterConfig: () => ({
+      provider: "p",
+      model: "m",
+      reasoning: "off" as const,
+    }),
+  });
   return {
     branch,
     commands,
@@ -96,6 +112,14 @@ test("observe records metrics without changing the prompt", async () => {
   await h.emit("agent_start");
   await h.emit("tool_call", { toolName: "read" });
   await h.emit("tool_result", { isError: false });
+  // A blocked checkpoint call never runs and must not count.
+  assert.deepEqual(
+    await h.emit("tool_call", { toolName: "jspace_checkpoint" }),
+    {
+      block: true,
+      reason: "J-Space mode is not on.",
+    },
+  );
   await h.emit("turn_end");
   await h.emit("agent_end", {
     messages: [
@@ -168,4 +192,146 @@ test("usage aggregation ignores non-assistant and malformed values", () => {
       totalTokens: 9,
     },
   );
+});
+
+test("rate attaches an outcome to the last run and status compares modes", async () => {
+  const h = harness("observe");
+  await h.emit("session_start");
+  const command = h.commands.get("jspace");
+
+  await command.handler("rate ok", h.ctx);
+  assert.equal(h.notifications.at(-1)?.level, "error");
+  assert.ok(!h.branch.some((entry) => entry.customType === OUTCOME_ENTRY_TYPE));
+
+  await h.emit("agent_start");
+  await h.emit("turn_end");
+  await h.emit("agent_end", { messages: [] });
+  await command.handler("rate fail", h.ctx);
+  const outcome = h.branch
+    .filter((entry) => entry.customType === OUTCOME_ENTRY_TYPE)
+    .at(-1);
+  const run = h.branch
+    .filter((entry) => entry.customType === METRICS_ENTRY_TYPE)
+    .at(-1);
+  assert.deepEqual(outcome?.data, {
+    runId: run?.data.runId,
+    outcome: "fail",
+    source: "manual",
+  });
+  assert.match(run?.data.runId, /^[0-9a-f-]{36}$/);
+  assert.match(
+    h.notifications.at(-1)?.text ?? "",
+    /Last observe run rated fail/,
+  );
+
+  await command.handler("on", h.ctx);
+  await h.emit("agent_start");
+  await h.emit("turn_end");
+  await h.emit("agent_end", { messages: [] });
+  const runs = h.branch.filter(
+    (entry) => entry.customType === METRICS_ENTRY_TYPE,
+  );
+  assert.notEqual(runs[1].data.runId, runs[0].data.runId);
+  await command.handler("status", h.ctx);
+  const status = h.notifications.at(-1)?.text ?? "";
+  assert.match(status, /last run: .* · unrated/);
+  assert.match(status, /observe: 1 run\(s\) .* 0 ok \/ 1 fail \/ 0 unrated/);
+  await command.handler("rate ok", h.ctx);
+  await command.handler("status", h.ctx);
+  assert.match(
+    h.notifications.at(-1)?.text ?? "",
+    /last run: .* · rated ok \(manual\)/,
+  );
+  assert.match(status, /on: 1 run\(s\) .* 0 ok \/ 0 fail \/ 1 unrated/);
+});
+
+const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+async function runOnce(h: ReturnType<typeof harness>) {
+  await h.emit("before_agent_start", { systemPrompt: "BASE" });
+  await h.emit("agent_start");
+  await h.emit("turn_end");
+  await h.emit("agent_end", { messages: [] });
+  await h.emit("agent_settled");
+  await settle();
+}
+
+test("model rating runs in the TUI after settle and defers to manual ratings", async () => {
+  const seen: string[] = [];
+  const h = harness("observe", async ({ transcript }) => {
+    seen.push(transcript);
+    return { outcome: "ok", reason: "tests pass" };
+  });
+  h.ctx.mode = "tui";
+  await h.emit("session_start");
+  await runOnce(h);
+  const run = h.branch
+    .filter((entry) => entry.customType === METRICS_ENTRY_TYPE)
+    .at(-1);
+  const outcome = h.branch
+    .filter((entry) => entry.customType === OUTCOME_ENTRY_TYPE)
+    .at(-1);
+  assert.equal(seen.length, 1);
+  assert.deepEqual(outcome?.data, {
+    runId: run?.data.runId,
+    outcome: "ok",
+    source: "model",
+    reason: "tests pass",
+  });
+  assert.match(
+    h.notifications.at(-1)?.text ?? "",
+    /model rating: ok — tests pass/,
+  );
+
+  // A manual rating recorded before the model answers is kept.
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const h2 = harness("observe", async () => {
+    await gate;
+    return { outcome: "fail", reason: "late" };
+  });
+  h2.ctx.mode = "tui";
+  await h2.emit("session_start");
+  await runOnce(h2);
+  await h2.commands.get("jspace").handler("rate ok", h2.ctx);
+  release();
+  await settle();
+  const outcomes = h2.branch.filter(
+    (entry) => entry.customType === OUTCOME_ENTRY_TYPE,
+  );
+  assert.equal(outcomes.length, 1);
+  assert.equal(outcomes[0].data.source, "manual");
+});
+
+test("model rating is skipped off-TUI, when off, and when unclear or failing", async () => {
+  let calls = 0;
+  const h = harness("observe", async () => {
+    calls += 1;
+    return { outcome: "unclear", reason: "" };
+  });
+  await h.emit("session_start");
+  await runOnce(h);
+  assert.equal(calls, 0, "print mode does not rate");
+
+  h.ctx.mode = "tui";
+  await h.commands.get("jspace").handler("off", h.ctx);
+  await runOnce(h);
+  assert.equal(calls, 0, "off mode does not rate");
+
+  await h.commands.get("jspace").handler("on", h.ctx);
+  await runOnce(h);
+  assert.equal(calls, 1);
+  assert.ok(!h.branch.some((entry) => entry.customType === OUTCOME_ENTRY_TYPE));
+
+  const failing = harness("observe", async () => {
+    throw new Error("boom");
+  });
+  failing.ctx.mode = "tui";
+  await failing.emit("session_start");
+  await runOnce(failing);
+  assert.match(
+    failing.notifications.at(-1)?.text ?? "",
+    /rating failed\. boom/,
+  );
+  assert.equal(failing.notifications.at(-1)?.level, "warning");
 });

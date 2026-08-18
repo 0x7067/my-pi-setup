@@ -8,12 +8,16 @@ import {
   emptyState,
   METRICS_ENTRY_TYPE,
   MODE_ENTRY_TYPE,
+  OUTCOME_ENTRY_TYPE,
   parseJspaceArgs,
   readDefaultMode,
   readMetricsFromBranch,
   readModeFromBranch,
+  readOutcomesFromBranch,
   readStateFromBranch,
   STATE_ENTRY_TYPE,
+  summarizeMetricsByMode,
+  type JspaceRunMetrics,
 } from "./src/state.ts";
 
 const entry = (customType: string, data: unknown) => ({
@@ -29,6 +33,16 @@ test("mode parsing is explicit and defaults to status", () => {
     mode: "observe",
   });
   assert.equal(parseJspaceArgs("automatic").action, "error");
+  assert.deepEqual(parseJspaceArgs("rate ok"), {
+    action: "rate",
+    outcome: "ok",
+  });
+  assert.deepEqual(parseJspaceArgs("Rate  FAIL"), {
+    action: "rate",
+    outcome: "fail",
+  });
+  assert.equal(parseJspaceArgs("rate").action, "error");
+  assert.equal(parseJspaceArgs("rate great").action, "error");
 });
 
 test("branch mode uses the latest valid entry", () => {
@@ -96,7 +110,7 @@ test("latest valid ledger snapshot wins", () => {
   );
 });
 
-test("metrics reader ignores malformed entries", () => {
+test("metrics reader ignores malformed entries and derives legacy run ids", () => {
   const metrics = {
     mode: "observe",
     timestamp: 1,
@@ -118,7 +132,83 @@ test("metrics reader ignores malformed entries", () => {
     readMetricsFromBranch([
       entry(METRICS_ENTRY_TYPE, { mode: "off" }),
       entry(METRICS_ENTRY_TYPE, metrics),
+      entry(METRICS_ENTRY_TYPE, { ...metrics, runId: "abc" }),
     ]),
-    [metrics],
+    [
+      { ...metrics, runId: "ts:1" },
+      { ...metrics, runId: "abc" },
+    ],
   );
+});
+
+test("per-mode summary averages runs and joins the latest outcome by timestamp", () => {
+  const run = (
+    mode: "observe" | "on",
+    timestamp: number,
+    durationMs: number,
+    totalTokens: number,
+  ): JspaceRunMetrics => ({
+    runId: `run-${timestamp}`,
+    mode,
+    timestamp,
+    durationMs,
+    turns: 2,
+    toolCalls: 4,
+    toolErrors: 1,
+    provider: "p",
+    model: "m",
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens },
+  });
+  const outcomes = readOutcomesFromBranch([
+    entry(OUTCOME_ENTRY_TYPE, {
+      runId: "run-1",
+      outcome: "fail",
+      source: "model",
+    }),
+    entry(OUTCOME_ENTRY_TYPE, {
+      runId: "run-1",
+      outcome: "ok",
+      source: "manual",
+    }),
+    // A later model rating never replaces a manual one.
+    entry(OUTCOME_ENTRY_TYPE, {
+      runId: "run-1",
+      outcome: "fail",
+      source: "model",
+      reason: "late",
+    }),
+    entry(OUTCOME_ENTRY_TYPE, {
+      runId: "run-3",
+      outcome: "maybe",
+      source: "model",
+    }),
+    entry(OUTCOME_ENTRY_TYPE, {
+      runId: "run-3",
+      outcome: "ok",
+      source: "robot",
+    }),
+    entry(OUTCOME_ENTRY_TYPE, { runId: "", outcome: "ok", source: "manual" }),
+  ]);
+  assert.deepEqual(
+    [...outcomes],
+    [["run-1", { runId: "run-1", outcome: "ok", source: "manual" }]],
+  );
+  const lines = summarizeMetricsByMode(
+    [
+      run("observe", 1, 10_000, 100),
+      run("observe", 2, 20_000, 300),
+      run("on", 3, 5_000, 50),
+    ],
+    outcomes,
+  );
+  assert.equal(lines.length, 2);
+  assert.match(
+    lines[0]!,
+    /^observe: 2 run\(s\) · mean 15\.0s · 2\.0 turn\(s\) · 4\.0 tool call\(s\) · 1\.00 error\(s\) · 200 tokens · 1 ok \/ 0 fail \/ 1 unrated$/,
+  );
+  assert.match(
+    lines[1]!,
+    /^on: 1 run\(s\) · mean 5\.0s .* 50 tokens · 0 ok \/ 0 fail \/ 1 unrated$/,
+  );
+  assert.deepEqual(summarizeMetricsByMode([], outcomes), []);
 });

@@ -8,7 +8,16 @@ J-Space mode is an opt-in Pi harness controller. It keeps durable task state and
 - `observe` records latency, turns, tools, errors, and token usage without changing the prompt.
 - `on` records the same metrics, adds a compact operating policy, and enables `jspace_checkpoint`.
 
-Use `/jspace off|observe|on|status|reset`. `--jspace off|observe|on` selects the initial mode for a CLI run. Session entries survive reload, resume, fork, tree navigation, and compaction; no project files are written.
+Use `/jspace off|observe|on|status|reset|rate ok|fail`. `--jspace off|observe|on` selects the initial mode for a CLI run.
+
+## Comparing modes
+
+Metrics alone measure cost, not success. Each run gets a `runId` (a UUID from `node:crypto`), and outcomes join on it:
+
+- **Model rating.** In the TUI, after a run settles in `observe` or `on`, the recap model configured by the `summaries` extension (`/summary-model`) rates the run `ok`, `fail`, or `unclear` from the same redacted transcript the recap uses. `ok` and `fail` are recorded with a one-line reason; `unclear` is dropped. The request runs in the background and is aborted on shutdown.
+- **Manual rating.** `/jspace rate ok` or `/jspace rate fail` records an outcome for the last measured run. A manual rating always wins over a model rating, whichever arrives first.
+
+`/jspace status` shows the last run with its rating and source, and one line per mode with run count, mean duration, turns, tool calls, errors, tokens, and `ok / fail / unrated` counts, so `observe` and `on` can be compared on the same branch. Session entries survive reload, resume, fork, tree navigation, and compaction; no project files are written.
 
 New sessions read their fallback mode from `config/jspace`. This setup selects `observe`; an explicit CLI flag or branch-local mode entry takes precedence.
 

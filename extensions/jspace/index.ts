@@ -2,29 +2,55 @@ import type {
   ExtensionAPI,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Type, type Static } from "typebox";
+import { loadSummaryConfig } from "../summaries/src/config.ts";
+import {
+  createRunBoundary,
+  getRunEntries,
+  serializeRunTranscript,
+} from "../summaries/src/transcript.ts";
 import { buildJspaceSystemPrompt } from "./src/prompt.ts";
+import { rateRunWithModel, type RateRun } from "./src/rater.ts";
 import {
   applyCheckpoint,
   emptyState,
   isJspaceMode,
   METRICS_ENTRY_TYPE,
   MODE_ENTRY_TYPE,
+  OUTCOME_ENTRY_TYPE,
   parseJspaceArgs,
   readDefaultMode,
   readMetricsFromBranch,
   readModeFromBranch,
+  readOutcomesFromBranch,
   readStateFromBranch,
   STATE_ENTRY_TYPE,
+  summarizeMetricsByMode,
+  summarizeRun,
   summarizeState,
   type JspaceMode,
   type JspaceRunMetrics,
+  type RunOutcome,
+  type RunOutcomeEntry,
   type UsageTotals,
 } from "./src/state.ts";
 
 const TOOL_NAME = "jspace_checkpoint";
+const SHUTDOWN_WAIT_MS = 1_000;
+
+export interface JspaceDependencies {
+  /** Rates a settled run from its transcript. Defaults to the recap model. */
+  readonly rateRun: RateRun;
+  readonly loadRaterConfig: typeof loadSummaryConfig;
+}
+
+const defaultDependencies: JspaceDependencies = {
+  rateRun: rateRunWithModel,
+  loadRaterConfig: loadSummaryConfig,
+};
 
 const VerifiedSchema = Type.Object(
   {
@@ -94,7 +120,11 @@ export function usageFromMessages(messages: readonly unknown[]): UsageTotals {
   return { input, output, cacheRead, cacheWrite, totalTokens };
 }
 
-export default function jspaceMode(pi: ExtensionAPI) {
+export default function jspaceMode(
+  pi: ExtensionAPI,
+  dependencies: Partial<JspaceDependencies> = {},
+) {
+  const deps = { ...defaultDependencies, ...dependencies };
   const extensionDir = dirname(fileURLToPath(import.meta.url));
   const defaultModePath = resolve(extensionDir, "../../config/jspace");
 
@@ -106,6 +136,10 @@ export default function jspaceMode(pi: ExtensionAPI) {
   let mode: JspaceMode = "off";
   let state = emptyState();
   let activeRun: ActiveRun | undefined;
+  let lastRunId: string | undefined;
+  let sessionActive = false;
+  const runBoundary = createRunBoundary();
+  const activeRatings = new Map<AbortController, Promise<void>>();
 
   const syncTool = () => {
     const active = pi.getActiveTools();
@@ -151,18 +185,84 @@ export default function jspaceMode(pi: ExtensionAPI) {
   };
 
   const statusText = (ctx: ExtensionContext) => {
-    const metrics = readMetricsFromBranch(ctx.sessionManager.getBranch());
+    const branch = ctx.sessionManager.getBranch();
+    const metrics = readMetricsFromBranch(branch);
+    const outcomes = readOutcomesFromBranch(branch);
     const last = metrics.at(-1);
     const lines = [`mode: ${mode}`, summarizeState(state)];
     if (last) {
-      lines.push(
-        `last run: ${(last.durationMs / 1000).toFixed(1)}s · ${last.turns} turn(s) · ${last.toolCalls} tool call(s) · ${last.toolErrors} error(s) · ${last.usage.totalTokens} tokens`,
-      );
-      lines.push(`measured runs: ${metrics.length}`);
+      lines.push(`last run: ${summarizeRun(last, outcomes.get(last.runId))}`);
+      lines.push(...summarizeMetricsByMode(metrics, outcomes));
     } else {
       lines.push("measured runs: 0");
     }
     return lines.join("\n");
+  };
+
+  const rateLastRun = (outcome: RunOutcome, ctx: ExtensionContext) => {
+    const last = readMetricsFromBranch(ctx.sessionManager.getBranch()).at(-1);
+    if (!last) {
+      ctx.ui.notify("No measured run to rate on this branch.", "error");
+      return;
+    }
+    const entry: RunOutcomeEntry = {
+      runId: last.runId,
+      outcome,
+      source: "manual",
+    };
+    pi.appendEntry(OUTCOME_ENTRY_TYPE, entry);
+    ctx.ui.notify(`Last ${last.mode} run rated ${outcome}.`, "info");
+  };
+
+  /**
+   * Ask the recap model to rate the settled run in the background. Manual
+   * ratings always win, so a model rating is skipped when one already exists.
+   */
+  const rateSettledRun = (
+    ctx: ExtensionContext,
+    baselineLeafId: string | null,
+  ) => {
+    const runId = lastRunId;
+    if (!runId || ctx.mode !== "tui" || !sessionActive) return;
+    const entries = getRunEntries(
+      ctx.sessionManager.getBranch(),
+      baselineLeafId,
+    );
+    if (entries.length === 0) return;
+    const transcript = serializeRunTranscript(entries);
+    const controller = new AbortController();
+    const task = (async () => {
+      try {
+        const rating = await deps.rateRun({
+          modelRegistry: ctx.modelRegistry,
+          config: deps.loadRaterConfig(),
+          transcript,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted || !sessionActive) return;
+        if (rating.outcome === "unclear") return;
+        const existing = readOutcomesFromBranch(
+          ctx.sessionManager.getBranch(),
+        ).get(runId);
+        if (existing?.source === "manual") return;
+        const entry: RunOutcomeEntry = {
+          runId,
+          outcome: rating.outcome,
+          source: "model",
+          ...(rating.reason ? { reason: rating.reason } : {}),
+        };
+        pi.appendEntry(OUTCOME_ENTRY_TYPE, entry);
+        ctx.ui.notify(
+          `J-Space model rating: ${rating.outcome}${rating.reason ? ` — ${rating.reason}` : ""}`,
+          "info",
+        );
+      } catch (error) {
+        if (controller.signal.aborted || !sessionActive) return;
+        const detail = error instanceof Error ? ` ${error.message}` : "";
+        ctx.ui.notify(`J-Space model rating failed.${detail}`, "warning");
+      }
+    })().finally(() => activeRatings.delete(controller));
+    activeRatings.set(controller, task);
   };
 
   pi.registerTool({
@@ -192,9 +292,18 @@ export default function jspaceMode(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("jspace", {
-    description: "Control J-Space session mode (off/observe/on/status/reset)",
+    description:
+      "Control J-Space session mode (off/observe/on/status/reset/rate ok|fail)",
     getArgumentCompletions: (prefix) => {
-      const items = ["off", "observe", "on", "status", "reset"]
+      const items = [
+        "off",
+        "observe",
+        "on",
+        "status",
+        "reset",
+        "rate ok",
+        "rate fail",
+      ]
         .filter((value) => value.startsWith(prefix))
         .map((value) => ({ value, label: value }));
       return items.length > 0 ? items : null;
@@ -215,12 +324,20 @@ export default function jspaceMode(pi: ExtensionAPI) {
         ctx.ui.notify("J-Space ledger reset for this branch.", "info");
         return;
       }
+      if (action.action === "rate") {
+        rateLastRun(action.outcome, ctx);
+        return;
+      }
       persistMode(action.mode, ctx);
       ctx.ui.notify(`J-Space mode: ${action.mode}.`, "info");
     },
   });
 
-  pi.on("session_start", (_event, ctx) => restore(ctx, true));
+  pi.on("session_start", (_event, ctx) => {
+    sessionActive = true;
+    runBoundary.reset();
+    restore(ctx, true);
+  });
   pi.on("session_tree", (_event, ctx) => restore(ctx, false));
 
   pi.on("session_compact", (_event, ctx) => {
@@ -229,14 +346,43 @@ export default function jspaceMode(pi: ExtensionAPI) {
     updateStatus(ctx);
   });
 
-  pi.on("before_agent_start", (event) => {
+  pi.on("before_agent_start", (event, ctx) => {
     syncTool();
+    if (mode !== "off") runBoundary.begin(ctx.sessionManager.getLeafId());
     if (mode !== "on") return;
     return { systemPrompt: buildJspaceSystemPrompt(event.systemPrompt, state) };
   });
 
+  pi.on("agent_settled", (_event, ctx) => {
+    const run = runBoundary.settle();
+    if (!run || mode === "off") return;
+    rateSettledRun(ctx, run.baselineLeafId);
+  });
+
+  pi.on("session_shutdown", async () => {
+    sessionActive = false;
+    runBoundary.reset();
+    const ratings = [...activeRatings.entries()];
+    for (const [controller] of ratings) controller.abort();
+    if (ratings.length > 0) {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          Promise.allSettled(ratings.map(([, task]) => task)),
+          new Promise<void>((resolve) => {
+            timeout = setTimeout(resolve, SHUTDOWN_WAIT_MS);
+          }),
+        ]);
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
+    }
+    activeRatings.clear();
+  });
+
   pi.on("tool_call", (event) => {
     if (event.toolName === TOOL_NAME && mode !== "on") {
+      // Blocked calls never run, so they do not count toward the run's tool calls.
       return { block: true, reason: "J-Space mode is not on." };
     }
     if (activeRun) activeRun.toolCalls += 1;
@@ -267,10 +413,12 @@ export default function jspaceMode(pi: ExtensionAPI) {
     const run = activeRun;
     activeRun = undefined;
     if (!run) return;
+    const now = Date.now();
     const metrics: JspaceRunMetrics = {
+      runId: randomUUID(),
       mode: run.mode,
-      timestamp: Date.now(),
-      durationMs: Math.max(0, Date.now() - run.startedAt),
+      timestamp: now,
+      durationMs: Math.max(0, now - run.startedAt),
       turns: run.turns,
       toolCalls: run.toolCalls,
       toolErrors: run.toolErrors,
@@ -278,6 +426,7 @@ export default function jspaceMode(pi: ExtensionAPI) {
       model: ctx.model?.id ?? "",
       usage: usageFromMessages(event.messages),
     };
+    lastRunId = metrics.runId;
     pi.appendEntry(METRICS_ENTRY_TYPE, metrics);
   });
 }
