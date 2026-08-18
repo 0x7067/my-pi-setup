@@ -1,8 +1,8 @@
 {
   "lastChangelogVersion": "0.84.2",
   "theme": "oxocarbon",
-  "defaultProvider": "devin",
-  "defaultModel": "claude-sonnet-5-medium",
+  "defaultProvider": "synthetic",
+  "defaultModel": "syn:large:text",
   "defaultThinkingLevel": "high",
   "transport": "websocket-cached",
   "defaultProjectTrust": "ask",

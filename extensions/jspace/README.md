@@ -14,7 +14,7 @@ Use `/jspace off|observe|on|status|reset|rate ok|fail`. `--jspace off|observe|on
 
 Metrics alone measure cost, not success. Each settled run gets a `runId` (a UUID from `node:crypto`), and outcomes join on it. Metrics aggregate latency, turns, tools, errors, and token usage across retry, compaction, and continuation cycles:
 
-- **Model rating.** In the TUI, after a run settles in `observe` or `on`, the recap model configured by the `summaries` extension (`/summary-model`) rates the run `ok`, `fail`, or `unclear` from the same redacted transcript the recap uses. `ok` and `fail` are recorded with a one-line reason; `unclear` is dropped. The request runs in the background and is aborted on shutdown or tree navigation.
+- **Model rating.** In the TUI, after a run settles in `on`, the recap model configured by the `summaries` extension (`/summary-model`) rates the run `ok`, `fail`, or `unclear` from the same redacted transcript the recap uses. `observe` records metrics only and does not send a rating request. `ok` and `fail` are recorded with a one-line reason; `unclear` is dropped. The request runs in the background and is aborted on shutdown or tree navigation.
 - **Manual rating.** `/jspace rate ok` or `/jspace rate fail` records an outcome for the last measured run. A manual rating always wins over a model rating, whichever arrives first.
 
 `/jspace status` shows the last run with its rating and source, and one line per mode with run count, mean duration, turns, tool calls, errors, tokens, and `ok / fail / unrated` counts, so `observe` and `on` can be compared on the same branch. Session entries survive reload, resume, fork, tree navigation, and compaction; no project files are written.

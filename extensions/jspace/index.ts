@@ -396,7 +396,7 @@ export default function jspaceMode(
     };
     lastRunId = metrics.runId;
     pi.appendEntry(METRICS_ENTRY_TYPE, metrics);
-    rateSettledRun(ctx, boundary.baselineLeafId);
+    if (run.mode === "on") rateSettledRun(ctx, boundary.baselineLeafId);
   });
 
   pi.on("session_shutdown", async () => {

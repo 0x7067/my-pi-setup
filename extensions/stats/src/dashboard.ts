@@ -116,13 +116,13 @@ export function dashboardHtml() {
     <div class="notice" id="notice" role="status" aria-live="polite" hidden><p id="notice-message"></p><button id="retry" type="button">Retry</button></div>
     <section class="rollup" aria-label="Usage overview">
       <div class="metric"><span class="metric-label">Requests</span><strong class="metric-value" id="requests">—</strong><span class="metric-note" id="sessions">— session files</span></div>
-      <div class="metric"><span class="metric-label">Cost</span><strong class="metric-value" id="cost">—</strong><span class="metric-note">Recorded provider cost</span></div>
+      <div class="metric"><span class="metric-label">Cost</span><strong class="metric-value" id="cost">—</strong><span class="metric-note">Cost reported by providers</span></div>
       <div class="metric"><span class="metric-label">Tokens</span><strong class="metric-value" id="tokens">—</strong><span class="metric-note" id="token-note">— output</span></div>
-      <div class="metric"><span class="metric-label">Cache reuse</span><strong class="metric-value" id="cache">—</strong><span class="metric-note" id="cache-note">Read ÷ reusable input</span></div>
-      <div class="metric"><span class="metric-label">Errors</span><strong class="metric-value" id="errors">—</strong><span class="metric-note" id="malformed">— malformed lines</span></div>
+      <div class="metric"><span class="metric-label">Prompt cache reuse</span><strong class="metric-value" id="cache">—</strong><span class="metric-note" id="cache-note">Cached input ÷ reusable prompt input</span></div>
+      <div class="metric"><span class="metric-label">Failed requests</span><strong class="metric-value" id="errors">—</strong><span class="metric-note" id="error-note">Model request failures; session logs pending</span></div>
     </section>
     <section class="activity"><div class="section-head"><h2>Daily cost</h2><span class="section-note">All recorded days</span></div><div class="bars" id="bars" tabindex="0" role="img" aria-label="Daily cost chart loading"><div class="loading-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></section>
-    <section class="grid"><div class="table-panel"><div class="section-head"><h2>Provider models</h2><span class="section-note">Recent = latest 20 metered requests</span></div><div class="table-scroll" id="models"><div class="loading-table" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div></div><div class="table-panel"><div class="section-head"><h2>Projects</h2><span class="section-note">Local folder names only</span></div><div class="table-scroll" id="projects"><div class="loading-table" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div></div></section>
+    <section class="grid"><div class="table-panel"><div class="section-head"><h2>Provider models</h2><span class="section-note">Recent = latest 20 requests with usage data</span></div><div class="table-scroll" id="models"><div class="loading-table" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div></div><div class="table-panel"><div class="section-head"><h2>Projects</h2><span class="section-note">Local folder names only</span></div><div class="table-scroll" id="projects"><div class="loading-table" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div></div></section>
     <footer><span>Read-only · loopback-only · refreshes every 30 seconds</span><span id="provider-count"></span></footer>
   </main>
   <script>
@@ -148,7 +148,7 @@ export function dashboardHtml() {
     }
     function modelTable(rows) {
       if (!rows.length) return '<div class="empty">No usage recorded.</div>';
-      return '<table><thead><tr><th>Name</th><th>Requests</th><th>Reuse</th><th>Recent</th><th>Recent misses</th><th>Cold misses</th><th>Mid-session misses</th><th>Writes</th><th>Cost</th></tr></thead><tbody>' + rows.map(row => {
+      return '<table><thead><tr><th>Name</th><th>Requests</th><th>Cache reuse</th><th>Recent reuse</th><th>Recent misses</th><th>First-request misses</th><th>Later misses</th><th>Cache writes</th><th>Cost</th></tr></thead><tbody>' + rows.map(row => {
         const reusable = row.input + row.cacheRead + row.cacheWriteReported;
         const reuse = reusable ? percent(row.cacheRead / reusable) : '—';
         const recent = row.recentCacheReuse === null ? '—' : percent(row.recentCacheReuse);
@@ -173,11 +173,12 @@ export function dashboardHtml() {
       document.querySelector('#tokens').textContent = number.format(t.totalTokens);
       document.querySelector('#token-note').textContent = number.format(t.output) + ' output · ' + number.format(t.reasoning) + ' reasoning';
       document.querySelector('#cache').textContent = percent(reusable ? t.cacheRead / reusable : 0);
-      document.querySelector('#cache-note').textContent = 'Read ÷ reusable input · ' + (stats.cacheWriteStatus === 'reported' ? number.format(t.cacheWriteReported) + ' write tokens reported' : stats.cacheWriteStatus === 'not-reported' ? (t.cacheWriteReported && t.cacheWriteUnreported ? number.format(t.cacheWriteReported) + ' write tokens reported; ' + number.format(t.cacheWriteUnreported) + ' unreported' : t.cacheWriteReported ? number.format(t.cacheWriteReported) + ' write tokens reported; additional writes not reported' : t.cacheWriteUnreported ? number.format(t.cacheWriteUnreported) + ' write tokens unreported' : 'writes not reported') : stats.cacheWriteStatus === 'none-recorded' ? 'no cache writes recorded' : 'usage unmetered');
+      document.querySelector('#cache-note').textContent = 'Cached input ÷ reusable prompt input · ' + (stats.cacheWriteStatus === 'reported' ? number.format(t.cacheWriteReported) + ' write tokens reported' : stats.cacheWriteStatus === 'not-reported' ? (t.cacheWriteReported && t.cacheWriteUnreported ? number.format(t.cacheWriteReported) + ' write tokens reported; ' + number.format(t.cacheWriteUnreported) + ' unreported' : t.cacheWriteReported ? number.format(t.cacheWriteReported) + ' write tokens reported; additional writes not reported' : t.cacheWriteUnreported ? number.format(t.cacheWriteUnreported) + ' write tokens unreported' : 'writes not reported') : stats.cacheWriteStatus === 'none-recorded' ? 'no cache writes recorded' : 'usage unmetered');
       document.querySelector('#errors').textContent = percent(t.requests ? t.errors / t.requests : 0);
       document.querySelector('#errors').className = 'metric-value ' + (t.errors ? 'critical' : '');
-      document.querySelector('#malformed').textContent = stats.malformedLines + ' malformed lines skipped';
-      document.querySelector('#malformed').className = 'metric-note ' + (stats.malformedLines ? 'warning' : '');
+      const sessionLogNote = stats.malformedLines ? 'Session log parse issues: ' + number.format(stats.malformedLines) + ' unreadable JSONL lines skipped' : 'Session logs parsed cleanly';
+      document.querySelector('#error-note').textContent = number.format(t.errors) + ' failed of ' + number.format(t.requests) + ' model requests · ' + sessionLogNote;
+      document.querySelector('#error-note').className = 'metric-note ' + (stats.malformedLines ? 'warning' : '');
       document.querySelector('#models').innerHTML = modelTable(stats.byProviderModel);
       document.querySelector('#projects').innerHTML = table(stats.byProject);
       const max = Math.max(0.000001, ...stats.byDay.map(day => day.cost));

@@ -315,9 +315,9 @@ async function runOnce(h: ReturnType<typeof harness>) {
   await settle();
 }
 
-test("model rating runs in the TUI after settle and defers to manual ratings", async () => {
+test("model rating runs only in on mode after settle and defers to manual ratings", async () => {
   const seen: string[] = [];
-  const h = harness("observe", async ({ transcript }) => {
+  const h = harness("on", async ({ transcript }) => {
     seen.push(transcript);
     return { outcome: "ok", reason: "tests pass" };
   });
@@ -345,7 +345,7 @@ test("model rating runs in the TUI after settle and defers to manual ratings", a
   // A manual rating recorded before the model answers is kept.
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
-  const h2 = harness("observe", async () => {
+  const h2 = harness("on", async () => {
     await gate;
     return { outcome: "fail", reason: "late" };
   });
@@ -366,7 +366,7 @@ test("changing the session tree aborts an in-flight model rating", async () => {
   let release!: () => void;
   let signal: AbortSignal | undefined;
   const gate = new Promise<void>((resolve) => (release = resolve));
-  const h = harness("observe", async (options) => {
+  const h = harness("on", async (options) => {
     signal = options.signal;
     await gate;
     return { outcome: "ok", reason: "late" };
@@ -382,9 +382,9 @@ test("changing the session tree aborts an in-flight model rating", async () => {
   assert.ok(!h.branch.some((entry) => entry.customType === OUTCOME_ENTRY_TYPE));
 });
 
-test("model rating is skipped off-TUI, when off, and when unclear or failing", async () => {
+test("model rating is skipped off-TUI, when observe or off, and when unclear or failing", async () => {
   let calls = 0;
-  const h = harness("observe", async () => {
+  const h = harness("on", async () => {
     calls += 1;
     return { outcome: "unclear", reason: "" };
   });
@@ -393,6 +393,10 @@ test("model rating is skipped off-TUI, when off, and when unclear or failing", a
   assert.equal(calls, 0, "print mode does not rate");
 
   h.ctx.mode = "tui";
+  await h.commands.get("jspace").handler("observe", h.ctx);
+  await runOnce(h);
+  assert.equal(calls, 0, "observe mode does not rate");
+
   await h.commands.get("jspace").handler("off", h.ctx);
   await runOnce(h);
   assert.equal(calls, 0, "off mode does not rate");
@@ -402,7 +406,7 @@ test("model rating is skipped off-TUI, when off, and when unclear or failing", a
   assert.equal(calls, 1);
   assert.ok(!h.branch.some((entry) => entry.customType === OUTCOME_ENTRY_TYPE));
 
-  const failing = harness("observe", async () => {
+  const failing = harness("on", async () => {
     throw new Error("boom");
   });
   failing.ctx.mode = "tui";
