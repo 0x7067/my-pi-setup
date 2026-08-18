@@ -11,11 +11,10 @@
     "verbatimModuleSyntax": true
   },
   "include": ["extensions/**/*.ts"],
-  "//exclude": "handoff keeps upstream pi-ext's looser settings; it is checked by extensions/handoff/tsconfig.json. hashline is vendored from omp (Bun-style extensionless relative imports); it is checked by extensions/hashline/tsconfig.json.",
+  "//exclude": "handoff keeps upstream pi-ext's looser settings; it is checked by extensions/handoff/tsconfig.json.",
   "exclude": [
     "node_modules",
     "extensions/**/node_modules",
-    "extensions/handoff/**",
-    "extensions/hashline/**"
+    "extensions/handoff/**"
   ]
 }

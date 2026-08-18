@@ -44,6 +44,11 @@
       "label": "project memory",
       "summary": "Query recent project history, read or update durable memory pages, manage session handoffs, and maintain stored project knowledge",
       "sourceIncludes": ["/extensions/ai-memory.ts"]
+    },
+    {
+      "label": "Synthetic web search",
+      "summary": "Web search through the Synthetic provider's built-in search tool",
+      "sourceIncludes": ["npm:@aliou/pi-synthetic@"]
     }
   ]
 }

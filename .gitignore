@@ -42,3 +42,7 @@ state/pi-synthetic/quota-history/
 .vscode/
 .idea/
 .continuity/
+
+# Design-tool binaries (large; keep locally, do not track)
+docs/specs/**/*.pen
+docs/specs/**/*.png

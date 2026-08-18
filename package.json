@@ -19,8 +19,7 @@
   },
   "type": "module",
   "workspaces": [
-    "extensions/*",
-    "extensions/hashline"
+    "extensions/*"
   ],
   "scripts": {
     "check": "npm run check:root && npm run check --workspaces --if-present",

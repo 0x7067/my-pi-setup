@@ -1,8 +1,8 @@
 {
   "lastChangelogVersion": "0.84.2",
   "theme": "oxocarbon",
-  "defaultProvider": "zai",
-  "defaultModel": "glm-5.3",
+  "defaultProvider": "devin",
+  "defaultModel": "claude-sonnet-5-medium",
   "defaultThinkingLevel": "high",
   "transport": "websocket-cached",
   "defaultProjectTrust": "ask",
@@ -11,18 +11,27 @@
   "steeringMode": "all",
   "followUpMode": "all",
   "skills": [
-    "-/Users/pedro/.agents/skills/agent-browser"
+    "-/Users/pedro/.agents/skills/luna-delegate",
+    "-/Users/pedro/.agents/skills/delegate-wave",
+    "-/Users/pedro/.agents/skills/time-off-draft-automation",
+    "-/Users/pedro/.agents/skills/em-docs-review-automation",
+    "-/Users/pedro/.agents/skills/notion-axi",
+    "-/Users/pedro/.agents/skills/pg-axi",
+    "-/Users/pedro/.agents/skills/ai-memory-routing-install",
+    "-/Users/pedro/.agents/skills/ai-memory-learning-maintenance"
   ],
   "packages": [
     "npm:deepseek-peak-pricing-hours@0.1.1",
-    "npm:@53able/pi-agent-browser@0.6.1",
+    {
+      "source": "npm:@53able/pi-agent-browser@0.6.1",
+      "skills": []
+    },
     {
       "source": "git:github.com/dondai44423/master-fetch@v13.1.2",
       "extensions": []
     },
     "npm:@aliou/pi-synthetic@0.25.1",
-    "npm:pi-lsp-lite@0.5.1",
-    "npm:@ff-labs/pi-fff"
+    "npm:pi-lsp-lite@0.5.1"
   ],
   "treeFilterMode": "default",
   "compaction": {

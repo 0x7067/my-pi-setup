@@ -2,7 +2,7 @@
 
 This setup is intentionally opinionated. It:
 
-- uses Deep Space as the theme
+- uses the Oxocarbon theme (Deep Space and others are included)
 - uses Hound for web search, fetching, crawling, and screenshots
 - updates the bottom bar to have the info I prefer to see
 - adds background terminals + ui to manage them
@@ -14,7 +14,7 @@ This setup is intentionally opinionated. It:
 - adds `@53able/pi-agent-browser` for typed browser automation tools
 - adds a private local dashboard for Pi usage, cost, models, projects, and cache reuse
 - adds Pi Lens, ai-memory, run summaries, and Calm mode
-- uses Synthetic's vision-capable large model by default
+- defaults to Claude Sonnet 5 through the vendored Devin provider
 - vendors Codex-style OpenAI compaction with a Pi 0.84 compatibility patch
 - vendors the Devin provider with conversation-scoped prompt-cache identity
 

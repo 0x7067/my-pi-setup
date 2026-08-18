@@ -16,11 +16,9 @@ npm run check
 npm test
 ```
 
-The npm package sources in `settings.json` are pinned. The local Hound source
-is accepted only when doctor finds
-`@houndmcp/hound-mcp-pi@13.1.1` and its expected extension entrypoint. Run
-`pi install` with a new explicit version or commit when intentionally upgrading
-one of the npm packages. Update Hound and the doctor expectation together.
+The npm and git package sources in `settings.json` are pinned; `npm run doctor`
+fails on an unpinned source. Run `pi install` with a new explicit version or
+commit when intentionally upgrading a package.
 
 Remote OpenAI compaction is vendored under
 `extensions/openai-server-compaction` from upstream commit
@@ -44,9 +42,11 @@ reuse under 80% is a regression.
 
 ## Web research
 
-Hound provides the web search, fetch, crawl, and screenshot tools. It is loaded
-from `~/.hound/pi-extension`, so keep that local package installed at the
-version checked by `npm run doctor`.
+Hound provides the web search, fetch, crawl, and screenshot tools. Its skills
+come from the pinned `git:github.com/dondai44423/master-fetch` package; its
+extension is loaded on first use by `extensions/hound-lazy.ts` from that
+package's checkout under `git/`, so the MCP process does not start until a
+tool_search activates the `Hound web research` catalog.
 
 ## Private state
 
