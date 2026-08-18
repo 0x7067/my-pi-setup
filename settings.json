@@ -1,8 +1,8 @@
 {
   "lastChangelogVersion": "0.84.2",
   "theme": "oxocarbon",
-  "defaultProvider": "ollama",
-  "defaultModel": "qwen3.8-27b",
+  "defaultProvider": "zai",
+  "defaultModel": "glm-5.3",
   "defaultThinkingLevel": "high",
   "transport": "websocket-cached",
   "defaultProjectTrust": "ask",
@@ -10,7 +10,9 @@
   "showCacheMissNotices": true,
   "steeringMode": "all",
   "followUpMode": "all",
-  "skills": ["-/Users/pedro/.agents/skills/agent-browser"],
+  "skills": [
+    "-/Users/pedro/.agents/skills/agent-browser"
+  ],
   "packages": [
     "npm:deepseek-peak-pricing-hours@0.1.1",
     "npm:@53able/pi-agent-browser@0.6.1",
@@ -19,7 +21,8 @@
       "extensions": []
     },
     "npm:@aliou/pi-synthetic@0.25.1",
-    "npm:pi-lsp-lite@0.5.1"
+    "npm:pi-lsp-lite@0.5.1",
+    "npm:@ff-labs/pi-fff"
   ],
   "treeFilterMode": "default",
   "compaction": {
