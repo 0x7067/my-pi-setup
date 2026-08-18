@@ -1,0 +1,9 @@
+{
+  "name": "jspace-mode",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit -p .",
+    "test": "node --test --experimental-strip-types *.test.ts"
+  }
+}

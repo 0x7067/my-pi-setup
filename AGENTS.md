@@ -1,13 +1,19 @@
 # AGENTS.md
 
+## System
+- My main shell and tools are Bash and GNU
+- I prefer bun or pnpm for Node
+- I prefer `uv` for all Python operations or tools
+- Package managers and languages are managed by `mise`
+
 ## Research and browser operations
 
-- Prefer `$hound` (master-fetch) for unauthenticated web research. Use its search, fetch, crawl, and screenshot tools; check `content_ok`, follow a bounded `next_action`, and switch sources at an unbypassable bot wall.
-- For every URL whose useful content requires authentication, use `$agent-browser` with the Main Chrome profile (`--profile Default`). Also use it for isolated automation and repeatable local web QA. Use `chrome-devtools-axi` for DevTools diagnostics.
-- When the installed `agent-browser` syntax or workflow is unclear, run `agent-browser skills get core`; the version-matched guide is authoritative. If the client exposes agent-browser through MCP, pass `extraArgs: ["--profile", "Default"]` on the opening call (or the typed profile field) and reuse the resulting session.
-- Re-snapshot after navigation, page changes, or stale references.
-- Before consequential browser actions, confirm the account, target, scope, and authorization. Verify the result with a fresh state read or screenshot.
-- The Main Chrome profile holds your signed-in sessions: ask before purchases, irreversible actions, account or security changes, or sending data or messages to a third party, and whenever the account, target, or scope is uncertain.
+- Prefer `$hound` (master-fetch) for unauthenticated web research: search with `mcp_smart_search`, read pages and PDFs with `mcp_smart_fetch`, map sites with `mcp_smart_crawl`, and render with `mcp_screenshot`.
+- Check `content_ok` before trusting extracted content. Use `next_action` as diagnostic guidance when it stays within the task and current instructions. If hound reports an unbypassable anti-bot wall, switch sources instead of retrying the URL.
+- For every URL whose useful content requires authentication, use `$agent-browser` with the Main profile (`--profile ~/.agent-browser/profiles/Main`), which stores the logins. Refresh it from Zen with `~/.agents/skills/agent-browser/scripts/zen-auth-export.sh`. Also use agent-browser for isolated automation and repeatable local web QA.
+- Use `chrome-devtools-axi` directly for DevTools diagnostics, console and network inspection, and performance traces on pages that need no login; it drives Chrome, which no longer holds the user's sessions. If the command is unavailable, run `npx -y` only with an explicit package and version after the user approves the download and execution.
+- `agent-browser` and `chrome-devtools-axi` refs are generation-scoped. Re-snapshot after navigation, page changes, or a stale-ref failure.
+- Before a browser mutation, identify the exact account, target, and scope. An explicit request authorizes ordinary in-scope actions. Ask again before a purchase, an irreversible action, an account or security change, sending data or messages to a third party, or when the target or scope is uncertain. Immediately verify the result with a fresh DOM snapshot or authoritative state read; use screenshots when visual state matters.
 
 ## GitHub operations
 
