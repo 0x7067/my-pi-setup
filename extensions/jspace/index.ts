@@ -84,6 +84,7 @@ interface ActiveRun {
   turns: number;
   toolCalls: number;
   toolErrors: number;
+  usage: UsageTotals;
 }
 
 interface UsageLike {
@@ -118,6 +119,16 @@ export function usageFromMessages(messages: readonly unknown[]): UsageTotals {
     totalTokens += numberOrZero(message.usage.totalTokens);
   }
   return { input, output, cacheRead, cacheWrite, totalTokens };
+}
+
+function addUsage(left: UsageTotals, right: UsageTotals): UsageTotals {
+  return {
+    input: left.input + right.input,
+    output: left.output + right.output,
+    cacheRead: left.cacheRead + right.cacheRead,
+    cacheWrite: left.cacheWrite + right.cacheWrite,
+    totalTokens: left.totalTokens + right.totalTokens,
+  };
 }
 
 export default function jspaceMode(
@@ -339,11 +350,14 @@ export default function jspaceMode(
 
   pi.on("session_start", (_event, ctx) => {
     sessionActive = true;
+    activeRun = undefined;
     runBoundary.reset();
     restore(ctx, true);
   });
   pi.on("session_tree", (_event, ctx) => {
     abortActiveRatings();
+    activeRun = undefined;
+    runBoundary.reset();
     restore(ctx, false);
   });
 
@@ -355,15 +369,34 @@ export default function jspaceMode(
 
   pi.on("before_agent_start", (event, ctx) => {
     syncTool();
-    if (mode !== "off") runBoundary.begin(ctx.sessionManager.getLeafId());
+    if (mode !== "off" && !activeRun) {
+      runBoundary.begin(ctx.sessionManager.getLeafId());
+    }
     if (mode !== "on") return;
     return { systemPrompt: buildJspaceSystemPrompt(event.systemPrompt, state) };
   });
 
   pi.on("agent_settled", (_event, ctx) => {
-    const run = runBoundary.settle();
-    if (!run || mode === "off") return;
-    rateSettledRun(ctx, run.baselineLeafId);
+    const boundary = runBoundary.settle();
+    const run = activeRun;
+    activeRun = undefined;
+    if (!boundary || !run || mode === "off") return;
+    const now = Date.now();
+    const metrics: JspaceRunMetrics = {
+      runId: randomUUID(),
+      mode: run.mode,
+      timestamp: now,
+      durationMs: Math.max(0, now - run.startedAt),
+      turns: run.turns,
+      toolCalls: run.toolCalls,
+      toolErrors: run.toolErrors,
+      provider: ctx.model?.provider ?? "",
+      model: ctx.model?.id ?? "",
+      usage: run.usage,
+    };
+    lastRunId = metrics.runId;
+    pi.appendEntry(METRICS_ENTRY_TYPE, metrics);
+    rateSettledRun(ctx, boundary.baselineLeafId);
   });
 
   pi.on("session_shutdown", async () => {
@@ -400,40 +433,32 @@ export default function jspaceMode(
   });
 
   pi.on("agent_start", () => {
-    activeRun =
-      mode === "off"
-        ? undefined
-        : {
-            mode,
-            startedAt: Date.now(),
-            turns: 0,
-            toolCalls: 0,
-            toolErrors: 0,
-          };
+    if (mode === "off" || activeRun) return;
+    activeRun = {
+      mode,
+      startedAt: Date.now(),
+      turns: 0,
+      toolCalls: 0,
+      toolErrors: 0,
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+      },
+    };
   });
 
   pi.on("turn_end", () => {
     if (activeRun) activeRun.turns += 1;
   });
 
-  pi.on("agent_end", (event, ctx) => {
-    const run = activeRun;
-    activeRun = undefined;
-    if (!run) return;
-    const now = Date.now();
-    const metrics: JspaceRunMetrics = {
-      runId: randomUUID(),
-      mode: run.mode,
-      timestamp: now,
-      durationMs: Math.max(0, now - run.startedAt),
-      turns: run.turns,
-      toolCalls: run.toolCalls,
-      toolErrors: run.toolErrors,
-      provider: ctx.model?.provider ?? "",
-      model: ctx.model?.id ?? "",
-      usage: usageFromMessages(event.messages),
-    };
-    lastRunId = metrics.runId;
-    pi.appendEntry(METRICS_ENTRY_TYPE, metrics);
+  pi.on("agent_end", (event) => {
+    if (!activeRun) return;
+    activeRun.usage = addUsage(
+      activeRun.usage,
+      usageFromMessages(event.messages),
+    );
   });
 }

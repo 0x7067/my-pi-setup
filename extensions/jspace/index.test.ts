@@ -138,6 +138,7 @@ test("observe records metrics without changing the prompt", async () => {
       },
     ],
   });
+  await h.emit("agent_settled");
   const metrics = h.branch.find(
     (entry) => entry.customType === METRICS_ENTRY_TYPE,
   );
@@ -206,9 +207,11 @@ test("rate attaches an outcome to the last run and status compares modes", async
   assert.equal(h.notifications.at(-1)?.level, "error");
   assert.ok(!h.branch.some((entry) => entry.customType === OUTCOME_ENTRY_TYPE));
 
+  await h.emit("before_agent_start", { systemPrompt: "BASE" });
   await h.emit("agent_start");
   await h.emit("turn_end");
   await h.emit("agent_end", { messages: [] });
+  await h.emit("agent_settled");
   await command.handler("rate fail", h.ctx);
   const outcome = h.branch
     .filter((entry) => entry.customType === OUTCOME_ENTRY_TYPE)
@@ -228,9 +231,11 @@ test("rate attaches an outcome to the last run and status compares modes", async
   );
 
   await command.handler("on", h.ctx);
+  await h.emit("before_agent_start", { systemPrompt: "BASE" });
   await h.emit("agent_start");
   await h.emit("turn_end");
   await h.emit("agent_end", { messages: [] });
+  await h.emit("agent_settled");
   const runs = h.branch.filter(
     (entry) => entry.customType === METRICS_ENTRY_TYPE,
   );
@@ -246,6 +251,57 @@ test("rate attaches an outcome to the last run and status compares modes", async
     /last run: .* · rated ok \(manual\)/,
   );
   assert.match(status, /on: 1 run\(s\) .* 0 ok \/ 0 fail \/ 1 unrated/);
+});
+
+test("retry cycles accumulate into one settled run", async () => {
+  const h = harness("observe");
+  await h.emit("session_start");
+  await h.emit("before_agent_start", { systemPrompt: "BASE" });
+  await h.emit("agent_start");
+  await h.emit("tool_call", { toolName: "read" });
+  await h.emit("turn_end");
+  await h.emit("agent_end", {
+    messages: [
+      {
+        role: "assistant",
+        usage: { input: 3, output: 2, totalTokens: 5 },
+      },
+    ],
+  });
+
+  await h.emit("before_agent_start", { systemPrompt: "BASE" });
+  await h.emit("agent_start");
+  await h.emit("tool_call", { toolName: "write" });
+  await h.emit("tool_result", { isError: true });
+  await h.emit("turn_end");
+  await h.emit("agent_end", {
+    messages: [
+      {
+        role: "assistant",
+        usage: { input: 7, output: 4, totalTokens: 11 },
+      },
+    ],
+  });
+
+  assert.equal(
+    h.branch.filter((entry) => entry.customType === METRICS_ENTRY_TYPE).length,
+    0,
+  );
+  await h.emit("agent_settled");
+  const runs = h.branch.filter(
+    (entry) => entry.customType === METRICS_ENTRY_TYPE,
+  );
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].data.turns, 2);
+  assert.equal(runs[0].data.toolCalls, 2);
+  assert.equal(runs[0].data.toolErrors, 1);
+  assert.deepEqual(runs[0].data.usage, {
+    input: 10,
+    output: 6,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 16,
+  });
 });
 
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
