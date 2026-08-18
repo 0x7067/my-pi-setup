@@ -4,7 +4,9 @@
   "type": "module",
   "version": "0.0.0",
   "description": "WIP — bitmap-frame context compaction. See PLAN.md. Not yet implemented.",
-  "pi": { "extensions": [] },
+  "pi": {
+    "extensions": []
+  },
   "dependencies": {
     "@oh-my-pi/pi-natives": "17.3.5"
   }

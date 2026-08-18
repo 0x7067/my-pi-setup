@@ -45,7 +45,7 @@ export const HL_RANGE_SEP = ".=";
 export const HL_LINE_BODY_SEP = ":";
 
 function regexEscape(str: string): string {
-	return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Bare positive line-number Lid (no decorations, no captures, no anchors). */
@@ -56,36 +56,36 @@ export const HL_LINE_CAPTURE_RE_RAW = `(${HL_LINE_RE_RAW})`;
 
 /** Format a concrete replacement hunk header (`PUT 5.=9:`). */
 export function formatReplaceHeader(start: number, end: number): string {
-	return `${HL_PUT_KEYWORD} ${start}${HL_RANGE_SEP}${end}${HL_HEADER_COLON}`;
+  return `${HL_PUT_KEYWORD} ${start}${HL_RANGE_SEP}${end}${HL_HEADER_COLON}`;
 }
 
 /** Format a concrete cut hunk header (`CUT 5.=9`). */
 export function formatCutHeader(start: number, end = start): string {
-	return `${HL_CUT_KEYWORD} ${start}${HL_RANGE_SEP}${end}`;
+  return `${HL_CUT_KEYWORD} ${start}${HL_RANGE_SEP}${end}`;
 }
 
 /** Format a gap locator for a cursor position (`<5`, `>5`, `<1`, `>$`). */
 export function formatGapLocator(cursor: Cursor): string {
-	switch (cursor.kind) {
-		case "before_anchor":
-			return `${HL_GAP_BEFORE}${cursor.anchor.line}`;
-		case "after_anchor":
-			return `${HL_GAP_AFTER}${cursor.anchor.line}`;
-		case "bof":
-			return `${HL_GAP_BEFORE}1`;
-		case "eof":
-			return `${HL_GAP_AFTER}${HL_EOF_ANCHOR}`;
-	}
+  switch (cursor.kind) {
+    case "before_anchor":
+      return `${HL_GAP_BEFORE}${cursor.anchor.line}`;
+    case "after_anchor":
+      return `${HL_GAP_AFTER}${cursor.anchor.line}`;
+    case "bof":
+      return `${HL_GAP_BEFORE}1`;
+    case "eof":
+      return `${HL_GAP_AFTER}${HL_EOF_ANCHOR}`;
+  }
 }
 
 /** Format an insertion hunk header for a cursor position (`PUT <5:`, `PUT >$:`). */
 export function formatInsertHeader(cursor: Cursor): string {
-	return `${HL_PUT_KEYWORD} ${formatGapLocator(cursor)}${HL_HEADER_COLON}`;
+  return `${HL_PUT_KEYWORD} ${formatGapLocator(cursor)}${HL_HEADER_COLON}`;
 }
 
 /** Format a register reference (`@name`). */
 export function formatRegister(name: string): string {
-	return `${HL_REGISTER_SIGIL}${name}`;
+  return `${HL_REGISTER_SIGIL}${name}`;
 }
 
 /** Number of hex characters in a content-derived file-hash tag. */
@@ -107,7 +107,7 @@ export const HL_FILE_HASH_EXAMPLES = ["1A2B", "3C4D", "9F3E"] as const;
  * do not invalidate a tag.
  */
 function normalizeFileHashText(text: string): string {
-	return text.replace(/[ \t\r]+(?=\n|$)/g, "");
+  return text.replace(/[ \t\r]+(?=\n|$)/g, "");
 }
 /**
  * Compute the content-derived hash tag carried by a hashline section header.
@@ -116,9 +116,9 @@ function normalizeFileHashText(text: string): string {
  * at any line validates whenever the live file still hashes to it.
  */
 export function computeFileHash(text: string): string {
-	const normalized = normalizeFileHashText(text);
-	const low16 = xxHash32(normalized, 0) & 0xffff;
-	return low16.toString(16).padStart(HL_FILE_HASH_LENGTH, "0").toUpperCase();
+  const normalized = normalizeFileHashText(text);
+  const low16 = xxHash32(normalized, 0) & 0xffff;
+  return low16.toString(16).padStart(HL_FILE_HASH_LENGTH, "0").toUpperCase();
 }
 
 /**
@@ -126,23 +126,23 @@ export function computeFileHash(text: string): string {
  * prefix, quoted for inclusion in error messages: `"160", "42", "7"`.
  */
 export function describeAnchorExamples(linePrefix = ""): string {
-	const examples = linePrefix
-		? [linePrefix, `${linePrefix.slice(0, -1) || "4"}2`, "7"]
-		: ["160", "42", "7"];
-	return examples.map((e) => `"${e}"`).join(", ");
+  const examples = linePrefix
+    ? [linePrefix, `${linePrefix.slice(0, -1) || "4"}2`, "7"]
+    : ["160", "42", "7"];
+  return examples.map((e) => `"${e}"`).join(", ");
 }
 
 /** Format a hashline section header for a file path and snapshot tag. */
 export function formatHashlineHeader(
-	filePath: string,
-	fileHash: string,
+  filePath: string,
+  fileHash: string,
 ): string {
-	return `${HL_FILE_PREFIX}${filePath}${HL_FILE_HASH_SEP}${fileHash}${HL_FILE_SUFFIX}`;
+  return `${HL_FILE_PREFIX}${filePath}${HL_FILE_HASH_SEP}${fileHash}${HL_FILE_SUFFIX}`;
 }
 
 /** Formats a single numbered line as `LINE:TEXT`. */
 export function formatNumberedLine(lineNumber: number, line: string): string {
-	return `${lineNumber}${HL_LINE_BODY_SEP}${line}`;
+  return `${lineNumber}${HL_LINE_BODY_SEP}${line}`;
 }
 
 /**
@@ -150,15 +150,15 @@ export function formatNumberedLine(lineNumber: number, line: string): string {
  * A terminal newline terminates the preceding line; it is not content.
  */
 export function splitAddressableFileLines(text: string): string[] {
-	const lines = text.split("\n");
-	if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
-	return lines;
+  const lines = text.split("\n");
+  if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
+  return lines;
 }
 
 /** Format file text with hashline-mode line-number prefixes for display. */
 export function formatNumberedLines(text: string, startLine = 1): string {
-	return text
-		.split("\n")
-		.map((line, i) => formatNumberedLine(startLine + i, line))
-		.join("\n");
+  return text
+    .split("\n")
+    .map((line, i) => formatNumberedLine(startLine + i, line))
+    .join("\n");
 }

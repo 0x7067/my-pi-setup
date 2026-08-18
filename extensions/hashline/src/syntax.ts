@@ -22,32 +22,32 @@ const boundaryCache = new Map<string, readonly number[]>();
 
 /** Syntactic node boundaries outside a visible source range. */
 export function enclosingBoundaries(
-	lines: readonly string[],
-	path: string,
-	startLine: number,
-	endLine: number,
+  lines: readonly string[],
+  path: string,
+  startLine: number,
+  endLine: number,
 ): readonly number[] {
-	const text = lines.join("\n");
-	const key = `${hashText(text).toString(36)}:${text.length}:${path}:${startLine}:${endLine}`;
-	const cached = boundaryCache.get(key);
-	if (cached !== undefined) return cached;
-	let boundaries: readonly number[];
-	try {
-		boundaries =
-			enclosingBlockBoundaries({
-				code: text,
-				path,
-				ranges: [{ startLine, endLine }],
-			}) ?? [];
-	} catch {
-		boundaries = [];
-	}
-	if (boundaryCache.size >= PARSE_CACHE_MAX) {
-		const oldest = boundaryCache.keys().next().value;
-		if (oldest !== undefined) boundaryCache.delete(oldest);
-	}
-	boundaryCache.set(key, boundaries);
-	return boundaries;
+  const text = lines.join("\n");
+  const key = `${hashText(text).toString(36)}:${text.length}:${path}:${startLine}:${endLine}`;
+  const cached = boundaryCache.get(key);
+  if (cached !== undefined) return cached;
+  let boundaries: readonly number[];
+  try {
+    boundaries =
+      enclosingBlockBoundaries({
+        code: text,
+        path,
+        ranges: [{ startLine, endLine }],
+      }) ?? [];
+  } catch {
+    boundaries = [];
+  }
+  if (boundaryCache.size >= PARSE_CACHE_MAX) {
+    const oldest = boundaryCache.keys().next().value;
+    if (oldest !== undefined) boundaryCache.delete(oldest);
+  }
+  boundaryCache.set(key, boundaries);
+  return boundaries;
 }
 
 /**
@@ -63,26 +63,26 @@ export function enclosingBoundaries(
  * source that fails to parse, which this predicate deliberately conflates.
  */
 export function parsesCleanly(path: string | undefined, text: string): boolean {
-	if (path === undefined) return false;
-	const key = `${hashText(text).toString(36)}:${text.length}:${path}`;
-	const cached = parseCache.get(key);
-	if (cached !== undefined) return cached;
-	const lineCount = text.length === 0 ? 1 : text.split("\n").length;
-	let ok: boolean;
-	try {
-		ok =
-			enclosingBlockBoundaries({
-				code: text,
-				path,
-				ranges: [{ startLine: 1, endLine: lineCount }],
-			}) !== null;
-	} catch {
-		ok = false;
-	}
-	if (parseCache.size >= PARSE_CACHE_MAX) {
-		const oldest = parseCache.keys().next().value;
-		if (oldest !== undefined) parseCache.delete(oldest);
-	}
-	parseCache.set(key, ok);
-	return ok;
+  if (path === undefined) return false;
+  const key = `${hashText(text).toString(36)}:${text.length}:${path}`;
+  const cached = parseCache.get(key);
+  if (cached !== undefined) return cached;
+  const lineCount = text.length === 0 ? 1 : text.split("\n").length;
+  let ok: boolean;
+  try {
+    ok =
+      enclosingBlockBoundaries({
+        code: text,
+        path,
+        ranges: [{ startLine: 1, endLine: lineCount }],
+      }) !== null;
+  } catch {
+    ok = false;
+  }
+  if (parseCache.size >= PARSE_CACHE_MAX) {
+    const oldest = parseCache.keys().next().value;
+    if (oldest !== undefined) parseCache.delete(oldest);
+  }
+  parseCache.set(key, ok);
+  return ok;
 }

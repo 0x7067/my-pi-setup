@@ -5,14 +5,12 @@
   "defaultModel": "qwen3.8-27b",
   "defaultThinkingLevel": "high",
   "transport": "websocket-cached",
-  "defaultProjectTrust": "trust",
+  "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
   "showCacheMissNotices": true,
   "steeringMode": "all",
   "followUpMode": "all",
-  "skills": [
-    "-/Users/pedro/.agents/skills/agent-browser"
-  ],
+  "skills": ["-/Users/pedro/.agents/skills/agent-browser"],
   "packages": [
     "npm:deepseek-peak-pricing-hours@0.1.1",
     "npm:@53able/pi-agent-browser@0.6.1",
@@ -21,7 +19,7 @@
       "extensions": []
     },
     "npm:@aliou/pi-synthetic@0.25.1",
-    "npm:pi-lsp-lite"
+    "npm:pi-lsp-lite@0.5.1"
   ],
   "treeFilterMode": "default",
   "compaction": {

@@ -27,23 +27,23 @@ import { computeFileHash } from "./format";
  * {@link Snapshot.hash}; recovery replays edits against {@link Snapshot.text}.
  */
 export interface Snapshot {
-	/** Canonical path this version belongs to. */
-	readonly path: string;
-	/** Full normalized (LF, no BOM) file text as observed. */
-	readonly text: string;
-	/** Content-derived tag for {@link Snapshot.text} (see {@link computeFileHash}). */
-	readonly hash: string;
-	/** Timestamp (ms since epoch) the version was recorded. */
-	recordedAt: number;
-	/**
-	 * 1-indexed file lines a producer (read/search) actually *displayed* under
-	 * this tag. A partial read (range, or a structural summary that collapsed
-	 * bodies) leaves this sparse; a whole-file read fills every line. Multiple
-	 * reads of the same content union into one set. `undefined` means "no
-	 * provenance recorded" — the patcher then skips the seen-line check and
-	 * applies as before. Mutated in place as more of the same content is read.
-	 */
-	seenLines?: Set<number>;
+  /** Canonical path this version belongs to. */
+  readonly path: string;
+  /** Full normalized (LF, no BOM) file text as observed. */
+  readonly text: string;
+  /** Content-derived tag for {@link Snapshot.text} (see {@link computeFileHash}). */
+  readonly hash: string;
+  /** Timestamp (ms since epoch) the version was recorded. */
+  recordedAt: number;
+  /**
+   * 1-indexed file lines a producer (read/search) actually *displayed* under
+   * this tag. A partial read (range, or a structural summary that collapsed
+   * bodies) leaves this sparse; a whole-file read fills every line. Multiple
+   * reads of the same content union into one set. `undefined` means "no
+   * provenance recorded" — the patcher then skips the seen-line check and
+   * applies as before. Mutated in place as more of the same content is read.
+   */
+  seenLines?: Set<number>;
 }
 
 /**
@@ -52,63 +52,71 @@ export interface Snapshot {
  * historical version a section's stale tag names.
  */
 export abstract class SnapshotStore {
-	/** Most-recently recorded version for `path`, or `null` if none. */
-	abstract head(path: string): Snapshot | null;
+  /** Most-recently recorded version for `path`, or `null` if none. */
+  abstract head(path: string): Snapshot | null;
 
-	/**
-	 * Recorded version for `path` whose tag equals `hash`, or `null`. When two
-	 * distinct texts collide on the 16-bit tag, returns the most-recently
-	 * recorded one.
-	 */
-	abstract byHash(path: string, hash: string): Snapshot | null;
+  /**
+   * Recorded version for `path` whose tag equals `hash`, or `null`. When two
+   * distinct texts collide on the 16-bit tag, returns the most-recently
+   * recorded one.
+   */
+  abstract byHash(path: string, hash: string): Snapshot | null;
 
-	/**
-	 * Recorded version for `path` whose {@link Snapshot.text} equals `fullText`,
-	 * or `null`. The patcher uses it on the no-drift path to attach seen-line
-	 * provenance to the exact text the model read.
-	 */
-	abstract byContent(path: string, fullText: string): Snapshot | null;
+  /**
+   * Recorded version for `path` whose {@link Snapshot.text} equals `fullText`,
+   * or `null`. The patcher uses it on the no-drift path to attach seen-line
+   * provenance to the exact text the model read.
+   */
+  abstract byContent(path: string, fullText: string): Snapshot | null;
 
-	/**
-	 * Every retained version whose tag equals `hash`, across all tracked
-	 * paths. The patcher uses this to recover the intended file when a section
-	 * names a path that does not exist on disk but carries a tag the store
-	 * minted — the model mistyped the path of a file it read this session.
-	 *
-	 * The base returns no matches (recovery disabled); stores that can
-	 * enumerate their contents override it to enable tag-based path recovery.
-	 */
-	findByHash(_hash: string): Snapshot[] {
-		return [];
-	}
+  /**
+   * Every retained version whose tag equals `hash`, across all tracked
+   * paths. The patcher uses this to recover the intended file when a section
+   * names a path that does not exist on disk but carries a tag the store
+   * minted — the model mistyped the path of a file it read this session.
+   *
+   * The base returns no matches (recovery disabled); stores that can
+   * enumerate their contents override it to enable tag-based path recovery.
+   */
+  findByHash(_hash: string): Snapshot[] {
+    return [];
+  }
 
-	/**
-	 * Record the full normalized text of `path` and return its content tag.
-	 * `seenLines` (optional) are the 1-indexed lines the producer displayed;
-	 * they merge into {@link Snapshot.seenLines} across reads of identical text.
-	 */
-	abstract record(path: string, fullText: string, seenLines?: Iterable<number>): string;
+  /**
+   * Record the full normalized text of `path` and return its content tag.
+   * `seenLines` (optional) are the 1-indexed lines the producer displayed;
+   * they merge into {@link Snapshot.seenLines} across reads of identical text.
+   */
+  abstract record(
+    path: string,
+    fullText: string,
+    seenLines?: Iterable<number>,
+  ): string;
 
-	/**
-	 * Merge `lines` into the {@link Snapshot.seenLines} of the version whose tag
-	 * equals `hash`. No-op when no such version is retained (the content aged
-	 * out or was overwritten). Lets producers attach displayed lines after the
-	 * tag was already minted (the body is formatted after the hash is computed).
-	 */
-	abstract recordSeenLines(path: string, hash: string, lines: Iterable<number>): void;
+  /**
+   * Merge `lines` into the {@link Snapshot.seenLines} of the version whose tag
+   * equals `hash`. No-op when no such version is retained (the content aged
+   * out or was overwritten). Lets producers attach displayed lines after the
+   * tag was already minted (the body is formatted after the hash is computed).
+   */
+  abstract recordSeenLines(
+    path: string,
+    hash: string,
+    lines: Iterable<number>,
+  ): void;
 
-	/** Drop the version history for a single path. */
-	abstract invalidate(path: string): void;
+  /** Drop the version history for a single path. */
+  abstract invalidate(path: string): void;
 
-	/**
-	 * Move retained version history (and read provenance) from `from` to `to`.
-	 * No-op when `from` has no history. Used by file moves so tags minted from
-	 * reads of the source path stay valid at the destination.
-	 */
-	abstract relocate(from: string, to: string): void;
+  /**
+   * Move retained version history (and read provenance) from `from` to `to`.
+   * No-op when `from` has no history. Used by file moves so tags minted from
+   * reads of the source path stay valid at the destination.
+   */
+  abstract relocate(from: string, to: string): void;
 
-	/** Drop every version history. */
-	abstract clear(): void;
+  /** Drop every version history. */
+  abstract clear(): void;
 }
 
 const DEFAULT_MAX_PATHS = 30;
@@ -117,23 +125,26 @@ const DEFAULT_MAX_VERSIONS_PER_PATH = 4;
 const DEFAULT_MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 
 /** Union `lines` into `snapshot.seenLines`, lazily creating the set. */
-function mergeSeenLines(snapshot: Snapshot, lines: Iterable<number> | undefined): void {
-	if (lines === undefined) return;
-	if (snapshot.seenLines === undefined) snapshot.seenLines = new Set<number>();
-	for (const line of lines) snapshot.seenLines.add(line);
+function mergeSeenLines(
+  snapshot: Snapshot,
+  lines: Iterable<number> | undefined,
+): void {
+  if (lines === undefined) return;
+  if (snapshot.seenLines === undefined) snapshot.seenLines = new Set<number>();
+  for (const line of lines) snapshot.seenLines.add(line);
 }
 
 export interface InMemorySnapshotStoreOptions {
-	/** Maximum number of distinct paths tracked at once (default 30). LRU eviction. */
-	maxPaths?: number;
-	/** Maximum full-file versions retained per path (default 4). Oldest dropped first. */
-	maxVersionsPerPath?: number;
-	/**
-	 * Global ceiling on retained snapshot text summed across every path's
-	 * version history, measured in UTF-16 code units (default 64 MiB).
-	 * Least-recently-used path histories are evicted to stay under it.
-	 */
-	maxTotalBytes?: number;
+  /** Maximum number of distinct paths tracked at once (default 30). LRU eviction. */
+  maxPaths?: number;
+  /** Maximum full-file versions retained per path (default 4). Oldest dropped first. */
+  maxVersionsPerPath?: number;
+  /**
+   * Global ceiling on retained snapshot text summed across every path's
+   * version history, measured in UTF-16 code units (default 64 MiB).
+   * Least-recently-used path histories are evicted to stay under it.
+   */
+  maxTotalBytes?: number;
 }
 
 /**
@@ -149,106 +160,125 @@ export interface InMemorySnapshotStoreOptions {
  * the identity.
  */
 export class InMemorySnapshotStore extends SnapshotStore {
-	readonly #versions: LRUCache<string, Snapshot[]>;
-	readonly #maxVersionsPerPath: number;
+  readonly #versions: LRUCache<string, Snapshot[]>;
+  readonly #maxVersionsPerPath: number;
 
-	constructor(options: InMemorySnapshotStoreOptions = {}) {
-		super();
-		this.#versions = new LRUCache<string, Snapshot[]>({
-			max: options.maxPaths ?? DEFAULT_MAX_PATHS,
-			maxSize: options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES,
-			sizeCalculation: history => {
-				let total = 1;
-				for (const version of history) total += version.text.length;
-				return total;
-			},
-		});
-		this.#maxVersionsPerPath = options.maxVersionsPerPath ?? DEFAULT_MAX_VERSIONS_PER_PATH;
-	}
+  constructor(options: InMemorySnapshotStoreOptions = {}) {
+    super();
+    this.#versions = new LRUCache<string, Snapshot[]>({
+      max: options.maxPaths ?? DEFAULT_MAX_PATHS,
+      maxSize: options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES,
+      sizeCalculation: (history) => {
+        let total = 1;
+        for (const version of history) total += version.text.length;
+        return total;
+      },
+    });
+    this.#maxVersionsPerPath =
+      options.maxVersionsPerPath ?? DEFAULT_MAX_VERSIONS_PER_PATH;
+  }
 
-	head(path: string): Snapshot | null {
-		return this.#versions.get(path)?.[0] ?? null;
-	}
+  head(path: string): Snapshot | null {
+    return this.#versions.get(path)?.[0] ?? null;
+  }
 
-	byHash(path: string, hash: string): Snapshot | null {
-		const history = this.#versions.get(path);
-		return history?.find(version => version.hash === hash) ?? null;
-	}
+  byHash(path: string, hash: string): Snapshot | null {
+    const history = this.#versions.get(path);
+    return history?.find((version) => version.hash === hash) ?? null;
+  }
 
-	byContent(path: string, fullText: string): Snapshot | null {
-		const history = this.#versions.get(path);
-		return history?.find(version => version.text === fullText) ?? null;
-	}
+  byContent(path: string, fullText: string): Snapshot | null {
+    const history = this.#versions.get(path);
+    return history?.find((version) => version.text === fullText) ?? null;
+  }
 
-	override findByHash(hash: string): Snapshot[] {
-		const matches: Snapshot[] = [];
-		for (const history of this.#versions.values()) {
-			for (const version of history) {
-				if (version.hash === hash) matches.push(version);
-			}
-		}
-		return matches;
-	}
+  override findByHash(hash: string): Snapshot[] {
+    const matches: Snapshot[] = [];
+    for (const history of this.#versions.values()) {
+      for (const version of history) {
+        if (version.hash === hash) matches.push(version);
+      }
+    }
+    return matches;
+  }
 
-	record(path: string, fullText: string, seenLines?: Iterable<number>): string {
-		const hash = computeFileHash(fullText);
-		// `get` refreshes LRU recency for `path`.
-		const history = this.#versions.get(path) ?? [];
-		// Dedup requires full-text equality, not just tag equality: two distinct
-		// texts that happen to share the 4-hex tag are DIFFERENT snapshots — fusing
-		// them under one entry would corrupt seenLines (attaching lines from
-		// text B onto the stored text A) and let the patcher misresolve which
-		// snapshot the section tag names during recovery or seen-line validation.
-		// See issue #4075.
-		const existing = history.find(version => version.hash === hash && version.text === fullText);
-		if (existing) {
-			// Same content state observed again: refresh recency and promote to
-			// head (it is the current file content), then reuse the tag. Union any
-			// newly-displayed lines so re-reading more of the file widens coverage.
-			existing.recordedAt = Date.now();
-			mergeSeenLines(existing, seenLines);
-			if (history[0] !== existing) {
-				this.#versions.set(path, [existing, ...history.filter(version => version !== existing)]);
-			}
-			return hash;
-		}
+  record(path: string, fullText: string, seenLines?: Iterable<number>): string {
+    const hash = computeFileHash(fullText);
+    // `get` refreshes LRU recency for `path`.
+    const history = this.#versions.get(path) ?? [];
+    // Dedup requires full-text equality, not just tag equality: two distinct
+    // texts that happen to share the 4-hex tag are DIFFERENT snapshots — fusing
+    // them under one entry would corrupt seenLines (attaching lines from
+    // text B onto the stored text A) and let the patcher misresolve which
+    // snapshot the section tag names during recovery or seen-line validation.
+    // See issue #4075.
+    const existing = history.find(
+      (version) => version.hash === hash && version.text === fullText,
+    );
+    if (existing) {
+      // Same content state observed again: refresh recency and promote to
+      // head (it is the current file content), then reuse the tag. Union any
+      // newly-displayed lines so re-reading more of the file widens coverage.
+      existing.recordedAt = Date.now();
+      mergeSeenLines(existing, seenLines);
+      if (history[0] !== existing) {
+        this.#versions.set(path, [
+          existing,
+          ...history.filter((version) => version !== existing),
+        ]);
+      }
+      return hash;
+    }
 
-		const snapshot: Snapshot = { path, text: fullText, hash, recordedAt: Date.now() };
-		mergeSeenLines(snapshot, seenLines);
-		this.#versions.set(path, [snapshot, ...history].slice(0, this.#maxVersionsPerPath));
-		return hash;
-	}
+    const snapshot: Snapshot = {
+      path,
+      text: fullText,
+      hash,
+      recordedAt: Date.now(),
+    };
+    mergeSeenLines(snapshot, seenLines);
+    this.#versions.set(
+      path,
+      [snapshot, ...history].slice(0, this.#maxVersionsPerPath),
+    );
+    return hash;
+  }
 
-	recordSeenLines(path: string, hash: string, lines: Iterable<number>): void {
-		const version = this.#versions.get(path)?.find(snapshot => snapshot.hash === hash);
-		if (version) mergeSeenLines(version, lines);
-	}
+  recordSeenLines(path: string, hash: string, lines: Iterable<number>): void {
+    const version = this.#versions
+      .get(path)
+      ?.find((snapshot) => snapshot.hash === hash);
+    if (version) mergeSeenLines(version, lines);
+  }
 
-	invalidate(path: string): void {
-		this.#versions.delete(path);
-	}
+  invalidate(path: string): void {
+    this.#versions.delete(path);
+  }
 
-	relocate(from: string, to: string): void {
-		const sourceHistory = this.#versions.get(from);
-		if (sourceHistory === undefined || sourceHistory.length === 0) return;
-		const relocated = sourceHistory.map(version => ({ ...version, path: to }));
-		const destHistory = this.#versions.get(to);
-		if (destHistory === undefined) {
-			this.#versions.set(to, relocated);
-		} else {
-			const seen = new Set<string>();
-			const merged: Snapshot[] = [];
-			for (const version of [...relocated, ...destHistory]) {
-				if (seen.has(version.hash)) continue;
-				seen.add(version.hash);
-				merged.push(version);
-			}
-			this.#versions.set(to, merged.slice(0, this.#maxVersionsPerPath));
-		}
-		this.#versions.delete(from);
-	}
+  relocate(from: string, to: string): void {
+    const sourceHistory = this.#versions.get(from);
+    if (sourceHistory === undefined || sourceHistory.length === 0) return;
+    const relocated = sourceHistory.map((version) => ({
+      ...version,
+      path: to,
+    }));
+    const destHistory = this.#versions.get(to);
+    if (destHistory === undefined) {
+      this.#versions.set(to, relocated);
+    } else {
+      const seen = new Set<string>();
+      const merged: Snapshot[] = [];
+      for (const version of [...relocated, ...destHistory]) {
+        if (seen.has(version.hash)) continue;
+        seen.add(version.hash);
+        merged.push(version);
+      }
+      this.#versions.set(to, merged.slice(0, this.#maxVersionsPerPath));
+    }
+    this.#versions.delete(from);
+  }
 
-	clear(): void {
-		this.#versions.clear();
-	}
+  clear(): void {
+    this.#versions.clear();
+  }
 }

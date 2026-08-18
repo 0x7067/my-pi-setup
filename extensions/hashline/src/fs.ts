@@ -17,15 +17,15 @@ import * as pathModule from "node:path";
  * report what actually landed on disk.
  */
 export interface WriteResult {
-	/** Final text that was persisted. May differ from the input if the FS transformed it. */
-	text: string;
+  /** Final text that was persisted. May differ from the input if the FS transformed it. */
+  text: string;
 }
 
 import type { FileOp } from "./types";
 
 /** Optional hints for {@link Filesystem.preflightWrite}. */
 export interface PreflightWriteOptions {
-	fileOp?: FileOp;
+  fileOp?: FileOp;
 }
 
 /**
@@ -34,25 +34,25 @@ export interface PreflightWriteOptions {
  * `node:fs` callers that already check `err.code === "ENOENT"`.
  */
 export class NotFoundError extends Error {
-	readonly code = "ENOENT";
+  readonly code = "ENOENT";
 
-	constructor(path: string, cause?: unknown) {
-		super(`File not found: ${path}`);
-		this.name = "NotFoundError";
-		if (cause !== undefined)
-			(this as Error & { cause?: unknown }).cause = cause;
-	}
+  constructor(path: string, cause?: unknown) {
+    super(`File not found: ${path}`);
+    this.name = "NotFoundError";
+    if (cause !== undefined)
+      (this as Error & { cause?: unknown }).cause = cause;
+  }
 }
 
 /** Type guard for {@link NotFoundError} and structurally-compatible errors. */
 export function isNotFound(error: unknown): boolean {
-	if (error instanceof NotFoundError) return true;
-	if (
-		error instanceof Error &&
-		(error as Error & { code?: string }).code === "ENOENT"
-	)
-		return true;
-	return false;
+  if (error instanceof NotFoundError) return true;
+  if (
+    error instanceof Error &&
+    (error as Error & { code?: string }).code === "ENOENT"
+  )
+    return true;
+  return false;
 }
 
 /**
@@ -67,70 +67,70 @@ export function isNotFound(error: unknown): boolean {
  * update.
  */
 export abstract class Filesystem {
-	/** Read the file's full text content. Throw on missing file. */
-	abstract readText(path: string): Promise<string>;
+  /** Read the file's full text content. Throw on missing file. */
+  abstract readText(path: string): Promise<string>;
 
-	/** Read raw bytes for backends whose text is a direct decode of persisted bytes. */
-	readBinary?(path: string): Promise<Uint8Array | undefined>;
+  /** Read raw bytes for backends whose text is a direct decode of persisted bytes. */
+  readBinary?(path: string): Promise<Uint8Array | undefined>;
 
-	/** Validate that `path` is writable before a prepared batch starts committing. */
-	async preflightWrite(
-		_path: string,
-		_options?: PreflightWriteOptions,
-	): Promise<void> {}
+  /** Validate that `path` is writable before a prepared batch starts committing. */
+  async preflightWrite(
+    _path: string,
+    _options?: PreflightWriteOptions,
+  ): Promise<void> {}
 
-	/** Persist `content` at `path`. Returns the actual final text that was written. */
-	abstract writeText(path: string, content: string): Promise<WriteResult>;
+  /** Persist `content` at `path`. Returns the actual final text that was written. */
+  abstract writeText(path: string, content: string): Promise<WriteResult>;
 
-	/** Delete the file at `path`. Default: not supported. */
-	async delete(path: string): Promise<void> {
-		throw new Error(`Filesystem does not support delete: ${path}`);
-	}
+  /** Delete the file at `path`. Default: not supported. */
+  async delete(path: string): Promise<void> {
+    throw new Error(`Filesystem does not support delete: ${path}`);
+  }
 
-	/**
-	 * Move/rename `from` to `to`. When `content` is provided the destination
-	 * receives that text; otherwise implementations may preserve the source bytes.
-	 */
-	async move(from: string, to: string, content?: string): Promise<void> {
-		void content;
-		throw new Error(`Filesystem does not support move: ${from} -> ${to}`);
-	}
+  /**
+   * Move/rename `from` to `to`. When `content` is provided the destination
+   * receives that text; otherwise implementations may preserve the source bytes.
+   */
+  async move(from: string, to: string, content?: string): Promise<void> {
+    void content;
+    throw new Error(`Filesystem does not support move: ${from} -> ${to}`);
+  }
 
-	/** Return true when the path exists and can be read. Default: probe via {@link readText}. */
-	async exists(path: string): Promise<boolean> {
-		try {
-			await this.readText(path);
-			return true;
-		} catch (error) {
-			if (isNotFound(error)) return false;
-			throw error;
-		}
-	}
+  /** Return true when the path exists and can be read. Default: probe via {@link readText}. */
+  async exists(path: string): Promise<boolean> {
+    try {
+      await this.readText(path);
+      return true;
+    } catch (error) {
+      if (isNotFound(error)) return false;
+      throw error;
+    }
+  }
 
-	/**
-	 * Canonical path used as a key by external caches (e.g. snapshot
-	 * stores). The default is identity; override to return an absolute or
-	 * otherwise canonicalised path so producers and consumers of cached
-	 * snapshots agree on the key without each having to redo the resolution.
-	 */
-	canonicalPath(path: string): string {
-		return path;
-	}
+  /**
+   * Canonical path used as a key by external caches (e.g. snapshot
+   * stores). The default is identity; override to return an absolute or
+   * otherwise canonicalised path so producers and consumers of cached
+   * snapshots agree on the key without each having to redo the resolution.
+   */
+  canonicalPath(path: string): string {
+    return path;
+  }
 
-	/**
-	 * Whether a section whose authored path is missing may be redirected to
-	 * the file its snapshot tag names (tag-based path recovery in
-	 * {@link Patcher.prepare}). `resolvedPath` is the canonical path the
-	 * redirect would read and write. Default: allow.
-	 *
-	 * Hosts that grant write privileges by path shape override this to refuse
-	 * redirects that could escalate beyond what the caller approved — e.g. an
-	 * internal-URL authored target (approved read-only), or a `resolvedPath`
-	 * outside the working tree (a sandbox/vault/out-of-tree write).
-	 */
-	allowTagPathRecovery(_authoredPath: string, _resolvedPath: string): boolean {
-		return true;
-	}
+  /**
+   * Whether a section whose authored path is missing may be redirected to
+   * the file its snapshot tag names (tag-based path recovery in
+   * {@link Patcher.prepare}). `resolvedPath` is the canonical path the
+   * redirect would read and write. Default: allow.
+   *
+   * Hosts that grant write privileges by path shape override this to refuse
+   * redirects that could escalate beyond what the caller approved — e.g. an
+   * internal-URL authored target (approved read-only), or a `resolvedPath`
+   * outside the working tree (a sandbox/vault/out-of-tree write).
+   */
+  allowTagPathRecovery(_authoredPath: string, _resolvedPath: string): boolean {
+    return true;
+  }
 }
 
 /**
@@ -138,65 +138,65 @@ export abstract class Filesystem {
  * a building block for stacked adapters (e.g. an LRU layer on top).
  */
 export class InMemoryFilesystem extends Filesystem {
-	#files = new Map<string, string>();
+  #files = new Map<string, string>();
 
-	constructor(initial?: Iterable<readonly [string, string]>) {
-		super();
-		if (initial) {
-			for (const [path, content] of initial) this.#files.set(path, content);
-		}
-	}
+  constructor(initial?: Iterable<readonly [string, string]>) {
+    super();
+    if (initial) {
+      for (const [path, content] of initial) this.#files.set(path, content);
+    }
+  }
 
-	async readText(path: string): Promise<string> {
-		const text = this.#files.get(path);
-		if (text === undefined) throw new NotFoundError(path);
-		return text;
-	}
+  async readText(path: string): Promise<string> {
+    const text = this.#files.get(path);
+    if (text === undefined) throw new NotFoundError(path);
+    return text;
+  }
 
-	async writeText(path: string, content: string): Promise<WriteResult> {
-		this.#files.set(path, content);
-		return { text: content };
-	}
+  async writeText(path: string, content: string): Promise<WriteResult> {
+    this.#files.set(path, content);
+    return { text: content };
+  }
 
-	override async delete(path: string): Promise<void> {
-		if (!this.#files.delete(path)) throw new NotFoundError(path);
-	}
+  override async delete(path: string): Promise<void> {
+    if (!this.#files.delete(path)) throw new NotFoundError(path);
+  }
 
-	override async move(
-		from: string,
-		to: string,
-		content?: string,
-	): Promise<void> {
-		const existing = this.#files.get(from);
-		if (existing === undefined) throw new NotFoundError(from);
-		const finalContent = content ?? existing;
-		this.#files.set(to, finalContent);
-		this.#files.delete(from);
-	}
+  override async move(
+    from: string,
+    to: string,
+    content?: string,
+  ): Promise<void> {
+    const existing = this.#files.get(from);
+    if (existing === undefined) throw new NotFoundError(from);
+    const finalContent = content ?? existing;
+    this.#files.set(to, finalContent);
+    this.#files.delete(from);
+  }
 
-	override async exists(path: string): Promise<boolean> {
-		return this.#files.has(path);
-	}
+  override async exists(path: string): Promise<boolean> {
+    return this.#files.has(path);
+  }
 
-	/** Synchronous helper for setting up fixtures without awaiting. */
-	set(path: string, content: string): void {
-		this.#files.set(path, content);
-	}
+  /** Synchronous helper for setting up fixtures without awaiting. */
+  set(path: string, content: string): void {
+    this.#files.set(path, content);
+  }
 
-	/** Synchronous helper for inspecting state without awaiting. */
-	get(path: string): string | undefined {
-		return this.#files.get(path);
-	}
+  /** Synchronous helper for inspecting state without awaiting. */
+  get(path: string): string | undefined {
+    return this.#files.get(path);
+  }
 
-	/** Wipe all entries. */
-	clear(): void {
-		this.#files.clear();
-	}
+  /** Wipe all entries. */
+  clear(): void {
+    this.#files.clear();
+  }
 
-	/** Iterate `[path, content]` pairs. */
-	entries(): IterableIterator<[string, string]> {
-		return this.#files.entries();
-	}
+  /** Iterate `[path, content]` pairs. */
+  entries(): IterableIterator<[string, string]> {
+    return this.#files.entries();
+  }
 }
 
 /**
@@ -205,66 +205,66 @@ export class InMemoryFilesystem extends Filesystem {
  * jail/sandbox resolution should wrap this with their own subclass.
  */
 export class NodeFilesystem extends Filesystem {
-	async readText(path: string): Promise<string> {
-		try {
-			return await fs.readFile(path, "utf-8");
-		} catch (error) {
-			if (isNotFound(error)) throw new NotFoundError(path, error);
-			throw error;
-		}
-	}
+  async readText(path: string): Promise<string> {
+    try {
+      return await fs.readFile(path, "utf-8");
+    } catch (error) {
+      if (isNotFound(error)) throw new NotFoundError(path, error);
+      throw error;
+    }
+  }
 
-	override async readBinary(path: string): Promise<Uint8Array> {
-		try {
-			return await fs.readFile(path);
-		} catch (error) {
-			if (isNotFound(error)) throw new NotFoundError(path, error);
-			throw error;
-		}
-	}
+  override async readBinary(path: string): Promise<Uint8Array> {
+    try {
+      return await fs.readFile(path);
+    } catch (error) {
+      if (isNotFound(error)) throw new NotFoundError(path, error);
+      throw error;
+    }
+  }
 
-	async writeText(path: string, content: string): Promise<WriteResult> {
-		await fs.writeFile(path, content, "utf-8");
-		return { text: content };
-	}
+  async writeText(path: string, content: string): Promise<WriteResult> {
+    await fs.writeFile(path, content, "utf-8");
+    return { text: content };
+  }
 
-	override async delete(path: string): Promise<void> {
-		try {
-			await fs.rm(path);
-		} catch (error) {
-			if (isNotFound(error)) throw new NotFoundError(path, error);
-			throw error;
-		}
-	}
+  override async delete(path: string): Promise<void> {
+    try {
+      await fs.rm(path);
+    } catch (error) {
+      if (isNotFound(error)) throw new NotFoundError(path, error);
+      throw error;
+    }
+  }
 
-	override async move(
-		from: string,
-		to: string,
-		content?: string,
-	): Promise<void> {
-		if (content !== undefined) {
-			await fs.writeFile(to, content, "utf-8");
-			await this.delete(from);
-			return;
-		}
-		try {
-			await fs.rename(from, to);
-		} catch (error) {
-			if (isNotFound(error)) throw new NotFoundError(from, error);
-			throw error;
-		}
-	}
+  override async move(
+    from: string,
+    to: string,
+    content?: string,
+  ): Promise<void> {
+    if (content !== undefined) {
+      await fs.writeFile(to, content, "utf-8");
+      await this.delete(from);
+      return;
+    }
+    try {
+      await fs.rename(from, to);
+    } catch (error) {
+      if (isNotFound(error)) throw new NotFoundError(from, error);
+      throw error;
+    }
+  }
 
-	override canonicalPath(path: string): string {
-		return pathModule.resolve(path);
-	}
+  override canonicalPath(path: string): string {
+    return pathModule.resolve(path);
+  }
 
-	override async exists(path: string): Promise<boolean> {
-		try {
-			await fs.access(path);
-			return true;
-		} catch {
-			return false;
-		}
-	}
+  override async exists(path: string): Promise<boolean> {
+    try {
+      await fs.access(path);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }

@@ -18,26 +18,32 @@ import { HL_FILE_HASH_LENGTH } from "./format";
 
 const HL_PREFIX_RE = /^\s*(?:>>>|>>)?\s*(?:[+*-]\s*)?\d+[:|]/;
 const HL_PREFIX_PLUS_RE = /^\s*(?:>>>|>>)?\s*\+\s*\d+:/;
-const HL_HEADER_RE = new RegExp(`^\\s*\\[[^#\\r\\n]+#[0-9a-fA-F]{${HL_FILE_HASH_LENGTH}}\\]\\s*$`);
+const HL_HEADER_RE = new RegExp(
+  `^\\s*\\[[^#\\r\\n]+#[0-9a-fA-F]{${HL_FILE_HASH_LENGTH}}\\]\\s*$`,
+);
 const DIFF_PLUS_RE = /^[+](?![+])/;
 const READ_TRUNCATION_NOTICE_RE =
-	/^\s*\[(?:(?:Showing lines \d+-\d+ of \d+|\d+ more lines? in (?:file|\S+))\b.*\bUse :L?\d+|(?:…|\.\.\.)?\d+\s*ln elided;\s*re-read needed ranges with .+)\]\s*$/;
+  /^\s*\[(?:(?:Showing lines \d+-\d+ of \d+|\d+ more lines? in (?:file|\S+))\b.*\bUse :L?\d+|(?:…|\.\.\.)?\d+\s*ln elided;\s*re-read needed ranges with .+)\]\s*$/;
 const READ_RANGE_ELISION_RE = /^\s*[1-9]\d*\s*-\s*[1-9]\d*:.*(?:…|\.\.\.).*$/;
 const READ_SINGLE_ELISION_RE = /^\s*(?:…|\.\.\.)\s*$/;
 
 /** Whether a row is display-only metadata emitted by `read`, never source. */
 export function isReadMetadataLine(line: string): boolean {
-	return READ_TRUNCATION_NOTICE_RE.test(line) || READ_RANGE_ELISION_RE.test(line) || READ_SINGLE_ELISION_RE.test(line);
+  return (
+    READ_TRUNCATION_NOTICE_RE.test(line) ||
+    READ_RANGE_ELISION_RE.test(line) ||
+    READ_SINGLE_ELISION_RE.test(line)
+  );
 }
 
 function stripLeadingHashlinePrefixes(line: string): string {
-	let result = line;
-	let previous: string;
-	do {
-		previous = result;
-		result = result.replace(HL_PREFIX_RE, "");
-	} while (result !== previous);
-	return result;
+  let result = line;
+  let previous: string;
+  do {
+    previous = result;
+    result = result.replace(HL_PREFIX_RE, "");
+  } while (result !== previous);
+  return result;
 }
 /**
  * Single-pass variant of {@link stripLeadingHashlinePrefixes} that strips at
@@ -47,45 +53,45 @@ function stripLeadingHashlinePrefixes(line: string): string {
  * corrupt content whose own text starts with a line-number prefix.
  */
 export function stripOneLeadingHashlinePrefix(line: string): string {
-	return line.replace(HL_PREFIX_RE, "");
+  return line.replace(HL_PREFIX_RE, "");
 }
 
 interface LinePrefixStats {
-	nonEmpty: number;
-	headerCount: number;
-	hashPrefixCount: number;
-	diffPlusHashPrefixCount: number;
-	diffPlusCount: number;
-	truncationNoticeCount: number;
+  nonEmpty: number;
+  headerCount: number;
+  hashPrefixCount: number;
+  diffPlusHashPrefixCount: number;
+  diffPlusCount: number;
+  truncationNoticeCount: number;
 }
 
 function collectLinePrefixStats(lines: string[]): LinePrefixStats {
-	const stats: LinePrefixStats = {
-		nonEmpty: 0,
-		headerCount: 0,
-		hashPrefixCount: 0,
-		diffPlusHashPrefixCount: 0,
-		diffPlusCount: 0,
-		truncationNoticeCount: 0,
-	};
+  const stats: LinePrefixStats = {
+    nonEmpty: 0,
+    headerCount: 0,
+    hashPrefixCount: 0,
+    diffPlusHashPrefixCount: 0,
+    diffPlusCount: 0,
+    truncationNoticeCount: 0,
+  };
 
-	for (const line of lines) {
-		if (line.length === 0) continue;
-		if (isReadMetadataLine(line)) {
-			stats.truncationNoticeCount++;
-			continue;
-		}
-		if (HL_HEADER_RE.test(line)) {
-			stats.nonEmpty++;
-			stats.headerCount++;
-			continue;
-		}
-		stats.nonEmpty++;
-		if (HL_PREFIX_RE.test(line)) stats.hashPrefixCount++;
-		if (HL_PREFIX_PLUS_RE.test(line)) stats.diffPlusHashPrefixCount++;
-		if (DIFF_PLUS_RE.test(line)) stats.diffPlusCount++;
-	}
-	return stats;
+  for (const line of lines) {
+    if (line.length === 0) continue;
+    if (isReadMetadataLine(line)) {
+      stats.truncationNoticeCount++;
+      continue;
+    }
+    if (HL_HEADER_RE.test(line)) {
+      stats.nonEmpty++;
+      stats.headerCount++;
+      continue;
+    }
+    stats.nonEmpty++;
+    if (HL_PREFIX_RE.test(line)) stats.hashPrefixCount++;
+    if (HL_PREFIX_PLUS_RE.test(line)) stats.diffPlusHashPrefixCount++;
+    if (DIFF_PLUS_RE.test(line)) stats.diffPlusCount++;
+  }
+  return stats;
 }
 
 /**
@@ -97,29 +103,34 @@ function collectLinePrefixStats(lines: string[]): LinePrefixStats {
  * Returns the lines untouched if no scheme is recognized.
  */
 export function stripNewLinePrefixes(lines: string[]): string[] {
-	const stats = collectLinePrefixStats(lines);
-	if (stats.nonEmpty === 0) return lines;
+  const stats = collectLinePrefixStats(lines);
+  if (stats.nonEmpty === 0) return lines;
 
-	const contentLineCount = stats.nonEmpty - stats.headerCount;
-	const stripHash = contentLineCount > 0 && stats.hashPrefixCount === contentLineCount;
-	const stripPlus =
-		!stripHash &&
-		stats.diffPlusHashPrefixCount === 0 &&
-		stats.diffPlusCount > 0 &&
-		stats.diffPlusCount >= stats.nonEmpty * 0.5;
+  const contentLineCount = stats.nonEmpty - stats.headerCount;
+  const stripHash =
+    contentLineCount > 0 && stats.hashPrefixCount === contentLineCount;
+  const stripPlus =
+    !stripHash &&
+    stats.diffPlusHashPrefixCount === 0 &&
+    stats.diffPlusCount > 0 &&
+    stats.diffPlusCount >= stats.nonEmpty * 0.5;
 
-	if (!stripHash && !stripPlus && stats.diffPlusHashPrefixCount === 0) return lines;
+  if (!stripHash && !stripPlus && stats.diffPlusHashPrefixCount === 0)
+    return lines;
 
-	return lines
-		.filter(line => !isReadMetadataLine(line) && !(stripHash && HL_HEADER_RE.test(line)))
-		.map(line => {
-			if (stripHash) return stripLeadingHashlinePrefixes(line);
-			if (stripPlus) return line.replace(DIFF_PLUS_RE, "");
-			if (stats.diffPlusHashPrefixCount > 0 && HL_PREFIX_PLUS_RE.test(line)) {
-				return line.replace(HL_PREFIX_RE, "");
-			}
-			return line;
-		});
+  return lines
+    .filter(
+      (line) =>
+        !isReadMetadataLine(line) && !(stripHash && HL_HEADER_RE.test(line)),
+    )
+    .map((line) => {
+      if (stripHash) return stripLeadingHashlinePrefixes(line);
+      if (stripPlus) return line.replace(DIFF_PLUS_RE, "");
+      if (stats.diffPlusHashPrefixCount > 0 && HL_PREFIX_PLUS_RE.test(line)) {
+        return line.replace(HL_PREFIX_RE, "");
+      }
+      return line;
+    });
 }
 
 /**
@@ -127,24 +138,27 @@ export function stripNewLinePrefixes(lines: string[]): string[] {
  * hashline-prefixed. Returns the lines unchanged otherwise.
  */
 export function stripHashlinePrefixes(lines: string[]): string[] {
-	const stats = collectLinePrefixStats(lines);
-	if (stats.nonEmpty === 0) return lines;
-	const contentLineCount = stats.nonEmpty - stats.headerCount;
-	if (contentLineCount === 0 || stats.hashPrefixCount !== contentLineCount) return lines;
-	return lines
-		.filter(line => !isReadMetadataLine(line) && !HL_HEADER_RE.test(line))
-		.map(line => stripLeadingHashlinePrefixes(line));
+  const stats = collectLinePrefixStats(lines);
+  if (stats.nonEmpty === 0) return lines;
+  const contentLineCount = stats.nonEmpty - stats.headerCount;
+  if (contentLineCount === 0 || stats.hashPrefixCount !== contentLineCount)
+    return lines;
+  return lines
+    .filter((line) => !isReadMetadataLine(line) && !HL_HEADER_RE.test(line))
+    .map((line) => stripLeadingHashlinePrefixes(line));
 }
 
 /**
  * Normalize line payloads by stripping read/search line prefixes. `null` /
  * `undefined` yield `[]`; a single multiline string is split on `\n`.
  */
-export function hashlineParseText(edit: string[] | string | null | undefined): string[] {
-	if (edit == null) return [];
-	if (typeof edit === "string") {
-		const trimmed = edit.endsWith("\n") ? edit.slice(0, -1) : edit;
-		edit = trimmed.replaceAll("\r", "").split("\n");
-	}
-	return stripNewLinePrefixes(edit);
+export function hashlineParseText(
+  edit: string[] | string | null | undefined,
+): string[] {
+  if (edit == null) return [];
+  if (typeof edit === "string") {
+    const trimmed = edit.endsWith("\n") ? edit.slice(0, -1) : edit;
+    edit = trimmed.replaceAll("\r", "").split("\n");
+  }
+  return stripNewLinePrefixes(edit);
 }
