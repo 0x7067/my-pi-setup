@@ -11,6 +11,7 @@ sessions/
 pi-hermes-memory/
 projects-memory/
 backups/
+fff/
 auth.json
 trust.json
 models.json
