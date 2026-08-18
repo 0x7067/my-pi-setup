@@ -54,6 +54,7 @@ function parseCandidate(candidate: string): RunRating | undefined {
     if (!isRunOutcome(outcome) && outcome !== "unclear") return undefined;
     const reason =
       typeof record.reason === "string" ? cleanReason(record.reason) : "";
+    if (outcome !== "unclear" && !reason) return undefined;
     return { outcome, reason };
   } catch {
     return undefined;

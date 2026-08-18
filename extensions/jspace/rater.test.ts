@@ -26,6 +26,15 @@ test("rating parser rejects unknown outcomes and cleans reasons", () => {
   );
   assert.equal(parseRatingResponse("no json here"), undefined);
   assert.equal(parseRatingResponse('["ok"]'), undefined);
+  assert.equal(
+    parseRatingResponse('{"outcome":"ok","reason":"  "}'),
+    undefined,
+  );
+  assert.equal(parseRatingResponse('{"outcome":"fail"}'), undefined);
+  assert.deepEqual(parseRatingResponse('{"outcome":"unclear"}'), {
+    outcome: "unclear",
+    reason: "",
+  });
   const long = "a".repeat(REASON_MAX_LENGTH + 50);
   const parsed = parseRatingResponse(
     JSON.stringify({ outcome: "ok", reason: `\u001b[31m${long}\n\tx` }),

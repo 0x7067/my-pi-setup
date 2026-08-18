@@ -11,7 +11,10 @@ import {
 
 function harness(
   flag?: string,
-  rateRun?: (options: { transcript: string }) => Promise<any>,
+  rateRun?: (options: {
+    transcript: string;
+    signal: AbortSignal;
+  }) => Promise<any>,
 ) {
   const handlers = new Map<string, Array<(event: any, ctx: any) => any>>();
   const commands = new Map<string, any>();
@@ -301,6 +304,26 @@ test("model rating runs in the TUI after settle and defers to manual ratings", a
   );
   assert.equal(outcomes.length, 1);
   assert.equal(outcomes[0].data.source, "manual");
+});
+
+test("changing the session tree aborts an in-flight model rating", async () => {
+  let release!: () => void;
+  let signal: AbortSignal | undefined;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const h = harness("observe", async (options) => {
+    signal = options.signal;
+    await gate;
+    return { outcome: "ok", reason: "late" };
+  });
+  h.ctx.mode = "tui";
+  await h.emit("session_start");
+  await runOnce(h);
+
+  await h.emit("session_tree");
+  assert.equal(signal?.aborted, true);
+  release();
+  await settle();
+  assert.ok(!h.branch.some((entry) => entry.customType === OUTCOME_ENTRY_TYPE));
 });
 
 test("model rating is skipped off-TUI, when off, and when unclear or failing", async () => {

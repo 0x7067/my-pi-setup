@@ -141,6 +141,10 @@ export default function jspaceMode(
   const runBoundary = createRunBoundary();
   const activeRatings = new Map<AbortController, Promise<void>>();
 
+  const abortActiveRatings = () => {
+    for (const controller of activeRatings.keys()) controller.abort();
+  };
+
   const syncTool = () => {
     const active = pi.getActiveTools();
     const hasTool = active.includes(TOOL_NAME);
@@ -338,7 +342,10 @@ export default function jspaceMode(
     runBoundary.reset();
     restore(ctx, true);
   });
-  pi.on("session_tree", (_event, ctx) => restore(ctx, false));
+  pi.on("session_tree", (_event, ctx) => {
+    abortActiveRatings();
+    restore(ctx, false);
+  });
 
   pi.on("session_compact", (_event, ctx) => {
     pi.appendEntry(MODE_ENTRY_TYPE, { mode });
@@ -363,7 +370,7 @@ export default function jspaceMode(
     sessionActive = false;
     runBoundary.reset();
     const ratings = [...activeRatings.entries()];
-    for (const [controller] of ratings) controller.abort();
+    abortActiveRatings();
     if (ratings.length > 0) {
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {

@@ -229,13 +229,13 @@ export function readMetricsFromBranch(
   entries: readonly BranchEntryLike[],
 ): JspaceRunMetrics[] {
   const metrics: JspaceRunMetrics[] = [];
-  for (const entry of entries) {
+  for (const [index, entry] of entries.entries()) {
     if (entry.type !== "custom" || entry.customType !== METRICS_ENTRY_TYPE)
       continue;
     if (isMetrics(entry.data)) {
       metrics.push({
         ...entry.data,
-        runId: entry.data.runId ?? `ts:${entry.data.timestamp}`,
+        runId: entry.data.runId ?? `ts:${entry.data.timestamp}:${index}`,
       });
     }
   }

@@ -132,10 +132,12 @@ test("metrics reader ignores malformed entries and derives legacy run ids", () =
     readMetricsFromBranch([
       entry(METRICS_ENTRY_TYPE, { mode: "off" }),
       entry(METRICS_ENTRY_TYPE, metrics),
+      entry(METRICS_ENTRY_TYPE, metrics),
       entry(METRICS_ENTRY_TYPE, { ...metrics, runId: "abc" }),
     ]),
     [
-      { ...metrics, runId: "ts:1" },
+      { ...metrics, runId: "ts:1:1" },
+      { ...metrics, runId: "ts:1:2" },
       { ...metrics, runId: "abc" },
     ],
   );
