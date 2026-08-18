@@ -14,6 +14,7 @@
  * Types come from `import type { ... } from "@oh-my-pi/pi-natives"` (erased at
  * runtime, so it never touches the Bun-only loader).
  */
+import { accessSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,15 +25,42 @@ function platformTag(): string {
   return `${process.platform}-${process.arch}`;
 }
 
+export function nativeBinaryFilenames(
+  platform: string,
+  arch: string,
+  variant: "modern" | "baseline" | null,
+): string[] {
+  const tag = `${platform}-${arch}`;
+  const defaultName = `pi_natives.${tag}.node`;
+  if (arch !== "x64" || variant === null) return [defaultName];
+
+  const baselineName = `pi_natives.${tag}-baseline.node`;
+  if (variant === "baseline") return [baselineName, defaultName];
+  return [`pi_natives.${tag}-modern.node`, baselineName, defaultName];
+}
+
+function nativeVariant(): "modern" | "baseline" | null {
+  if (process.arch !== "x64") return null;
+  const override = process.env.PI_NATIVE_VARIANT;
+  if (override === "modern" || override === "baseline") return override;
+  if (process.platform !== "linux") return "baseline";
+
+  try {
+    return /\bavx2\b/i.test(readFileSync("/proc/cpuinfo", "utf8"))
+      ? "modern"
+      : "baseline";
+  } catch {
+    return "baseline";
+  }
+}
+
 /** Absolute path of the platform-specific .node binary inside the installed npm package. */
 function binaryPath(): string {
   const platform = platformTag();
-  const fileName = `pi_natives.${platform}.node`;
-  const relPkg = path.join(
-    "node_modules",
-    "@oh-my-pi",
-    `pi-natives-${platform}`,
-    fileName,
+  const fileNames = nativeBinaryFilenames(
+    process.platform,
+    process.arch,
+    nativeVariant(),
   );
   // Walk up from this loader's own directory looking for the hoisted
   // optional-dep package in any enclosing node_modules (works whether the
@@ -40,15 +68,24 @@ function binaryPath(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
   let dir = here;
   for (let depth = 0; depth < 8; depth++) {
-    const candidate = path.join(dir, relPkg);
-    try {
-      require("node:fs").accessSync(candidate);
-      return candidate;
-    } catch {
-      const parent = path.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
+    for (const fileName of fileNames) {
+      const candidate = path.join(
+        dir,
+        "node_modules",
+        "@oh-my-pi",
+        `pi-natives-${platform}`,
+        fileName,
+      );
+      try {
+        accessSync(candidate);
+        return candidate;
+      } catch {
+        // Try the next CPU variant or enclosing node_modules directory.
+      }
     }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
   }
   throw new Error(
     `[native-node] Could not find pi-natives-${platform} .node binary in any enclosing node_modules. ` +
