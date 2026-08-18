@@ -136,18 +136,36 @@ true`. Pi then sends `x-session-id` (the session ID) with OpenRouter
 Facts from official docs on 2026-08-17. Cache read price is relative to
 uncached input.
 
-| provider          | mechanism                                                                   | min size / granularity          | TTL                            |              read price | client controls                                                                             |
-| ----------------- | --------------------------------------------------------------------------- | ------------------------------- | ------------------------------ | ----------------------: | ------------------------------------------------------------------------------------------- |
-| DeepSeek          | automatic disk cache; prefix units at request boundaries; exact match       | 64 tokens (secondary sources)   | hours to days, best effort     |                   ~1/50 | none; keep prefix identical                                                                 |
-| OpenAI (≤5.5)     | automatic prefix reuse                                                      | 1,024–2,048 tokens / 128 blocks | 5–10 min in memory, 24h opt-in |                    0.1× | `prompt_cache_key`, `prompt_cache_retention`, `allowed_tools` instead of tool array changes |
-| OpenAI (5.6+)     | exact-match at breakpoints; `prompt_cache_key` required                     | —                               | 30 min, refreshed              |      0.1× (write 1.25×) | `prompt_cache_breakpoint`, `prompt_cache_options`                                           |
-| Anthropic         | `cache_control` breakpoints (≤4), hierarchy tools → system → messages       | 1,024–4,096 tokens per model    | 5 min or 1h (`ttl`)            | 0.1× (write 1.25× / 2×) | breakpoints, `ttl`, `max_tokens: 0` pre-warm; tool or thinking changes invalidate           |
-| Kimi (Moonshot)   | automatic                                                                   | —                               | not published                  |                   ~0.1× | none                                                                                        |
-| Z.ai GLM          | automatic; reported in `prompt_tokens_details.cached_tokens`                | —                               | not published                  |                   ~0.2× | none                                                                                        |
-| xAI Grok          | automatic from start of messages                                            | —                               | not published                  |               0.1–0.25× | `x-grok-conv-id` header, `prompt_cache_key`                                                 |
-| OpenRouter        | passes provider caching through; sticky routing per session                 | provider rules                  | sticky session 10 min idle     |                provider | `x-session-id`, `cache_control` for Anthropic; reports `cache_discount`                     |
-| Synthetic / Devin | undocumented; caching observed in usage                                     | —                               | —                              |                       — | none known                                                                                  |
-| vLLM / llama.cpp  | automatic prefix caching (vLLM default on; llama.cpp `cache_prompt`, slots) | block size                      | until eviction                 |                       — | keep prefix identical; llama.cpp `--slot-save-path`                                         |
+| provider                                   | mechanism                                                                   | min size / granularity          | TTL                            |              read price | client controls                                                                               |
+| ------------------------------------------ | --------------------------------------------------------------------------- | ------------------------------- | ------------------------------ | ----------------------: | --------------------------------------------------------------------------------------------- |
+| DeepSeek                                   | automatic disk cache; prefix units at request boundaries; exact match       | 64 tokens (secondary sources)   | hours to days, best effort     |                   ~1/50 | none; keep prefix identical                                                                   |
+| OpenAI (≤5.5)                              | automatic prefix reuse                                                      | 1,024–2,048 tokens / 128 blocks | 5–10 min in memory, 24h opt-in |                    0.1× | `prompt_cache_key`, `prompt_cache_retention`, `allowed_tools` instead of tool array changes   |
+| OpenAI (5.6+)                              | exact-match at breakpoints; `prompt_cache_key` required                     | —                               | 30 min, refreshed              |      0.1× (write 1.25×) | `prompt_cache_breakpoint`, `prompt_cache_options`                                             |
+| Anthropic                                  | `cache_control` breakpoints (≤4), hierarchy tools → system → messages       | 512–4,096 tokens per model      | 5 min or 1h (`ttl`)            | 0.1× (write 1.25× / 2×) | breakpoints, `ttl`, `max_tokens: 0` pre-warm; tool changes invalidate all; thinking see notes |
+| Kimi (Moonshot)                            | automatic                                                                   | —                               | not published                  |                   ~0.1× | none                                                                                          |
+| Z.ai GLM                                   | automatic; reported in `prompt_tokens_details.cached_tokens`                | —                               | not published                  |                   ~0.2× | none                                                                                          |
+| xAI Grok                                   | automatic from start of messages                                            | —                               | not published                  |               0.1–0.25× | `x-grok-conv-id` header, `prompt_cache_key`                                                   |
+| OpenRouter                                 | passes provider caching through; sticky routing per session                 | provider rules                  | sticky session 10 min idle     |                provider | `x-session-id`, `cache_control` for Anthropic; reports `cache_discount`                       |
+| Synthetic / Devin                          | undocumented; caching observed in usage                                     | —                               | —                              |                       — | none known                                                                                    |
+| vLLM / llama.cpp                           | automatic prefix caching (vLLM default on; llama.cpp `cache_prompt`, slots) | block size                      | until eviction                 |                       — | keep prefix identical; llama.cpp `--slot-save-path`                                           |
+| Anthropic notes (docs re-read 2026-08-18): |
+
+- Minimum cacheable prefix per model: 512 tokens (Opus 5, Fable 5,
+  Mythos 5); 1,024 (Sonnet 5, Sonnet 4.6/4.5, Opus 4.8); 2,048 (Opus 4.7,
+  Haiku 3.5); 4,096 (Opus 4.5/4.6, Haiku 4.5). Below the minimum the request
+  is silently uncached. This setup's prefix (~4k tokens after the 2026-08-18
+  diet) clears every tier.
+- Tool definition changes invalidate tools, system, and messages. Thinking
+  and `effort` changes always invalidate messages; whether they also
+  invalidate tools/system is model-specific. Thinking blocks are cached inside
+  prior assistant turns and survive a non-tool-result user turn on
+  Opus 4.5+/Sonnet 4.6+, but are stripped on earlier Opus/Sonnet and all
+  Haiku, which drops every later message out of the cache.
+- Writes happen only at breakpoints, and a read looks back at most 20 content
+  blocks for a prior write. With Pi's single trailing breakpoint, a turn that
+  appends more than 20 blocks (a large parallel tool burst) can miss despite
+  identical history. TTL counts from the start of the request, not the end of
+  the response.
 
 Sources: DeepSeek https://api-docs.deepseek.com/guides/kv_cache/ ·
 OpenAI https://developers.openai.com/api/docs/guides/prompt-caching ·
