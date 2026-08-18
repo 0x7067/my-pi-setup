@@ -104,19 +104,15 @@ export default function modelInfo(pi: ExtensionAPI) {
     runContentStreamMs = 0;
     state = { ...state, tokensPerSecond: null, generating: false };
     sessionCost = getSessionCost(ctx);
-    refresh(ctx);
+    refresh(ctx, true);
   });
 
-  pi.on("model_select", (event, ctx) => {
-    state = {
-      ...state,
-      provider: event.model.provider,
-      modelId: event.model.id,
-      modelName: event.model.name,
-      thinking: event.model.reasoning ? pi.getThinkingLevel() : "off",
-      contextWindow: event.model.contextWindow,
-    };
-    refresh(ctx);
+  pi.on("model_select", (_event, ctx) => {
+    // The session assigns the new model before it emits, so `refresh` already
+    // reads it from the context. Force the publish: writing the new values into
+    // `state` here first would make the change detector in `setState` see no
+    // difference and drop the event, leaving the footer on the old model.
+    refresh(ctx, true);
   });
 
   pi.on("thinking_level_select", (event) => {
@@ -128,7 +124,7 @@ export default function modelInfo(pi: ExtensionAPI) {
     runContentStreamMs = 0;
     resetMessageTracking();
     state = { ...state, tokensPerSecond: null, generating: true };
-    refresh(ctx);
+    refresh(ctx, true);
   });
 
   pi.on("message_start", (event) => {
@@ -217,7 +213,7 @@ export default function modelInfo(pi: ExtensionAPI) {
     }
 
     resetMessageTracking();
-    refresh(ctx);
+    refresh(ctx, true);
   });
 
   pi.on("turn_end", (_event, ctx) => refresh(ctx));
