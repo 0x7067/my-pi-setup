@@ -279,6 +279,11 @@ function sessionID(ctx: any): string | undefined {
   return typeof id === "string" && id.length > 0 ? id : undefined;
 }
 
+export function isPersistentSession(ctx: any): boolean {
+  const file = ctx?.sessionManager?.getSessionFile?.();
+  return typeof file === "string" && file.length > 0;
+}
+
 function modelName(model: any): string | undefined {
   const name = model?.id ?? model?.name ?? model?.model;
   return typeof name === "string" && name.length > 0 ? name : undefined;
@@ -322,6 +327,7 @@ const handoffChecked = new Set<string>();
 const preCompactLast = new Map<string, number>();
 
 function startSession(ctx: any, extra: Record<string, unknown> = {}): void {
+  if (!isPersistentSession(ctx)) return;
   const id = sessionID(ctx);
   if (!id || startedSessions.has(id)) return;
   startedSessions.add(id);
@@ -334,6 +340,7 @@ function startSession(ctx: any, extra: Record<string, unknown> = {}): void {
 }
 
 function postPreCompact(ctx: any): void {
+  if (!isPersistentSession(ctx)) return;
   startSession(ctx);
   const key = sessionID(ctx) || "unknown";
   const now = Date.now();
@@ -465,6 +472,9 @@ export default function AiMemoryExtension(pi: any): void {
   });
 
   pi.on("before_agent_start", async (event: any, ctx: any) => {
+    // Ephemeral sessions must not capture lifecycle data or consume the next
+    // persisted session's single-use handoff.
+    if (!isPersistentSession(ctx)) return;
     startSession(ctx);
     postHook("user-prompt", {
       ...sessionPayload(ctx),
@@ -488,6 +498,7 @@ export default function AiMemoryExtension(pi: any): void {
   });
 
   pi.on("tool_call", (event: any, ctx: any) => {
+    if (!isPersistentSession(ctx)) return;
     startSession(ctx);
     postHook("pre-tool-use", {
       ...sessionPayload(ctx),
@@ -498,6 +509,7 @@ export default function AiMemoryExtension(pi: any): void {
   });
 
   pi.on("tool_result", (event: any, ctx: any) => {
+    if (!isPersistentSession(ctx)) return;
     startSession(ctx);
     postHook("post-tool-use", {
       ...sessionPayload(ctx),
@@ -520,11 +532,13 @@ export default function AiMemoryExtension(pi: any): void {
 
 
   pi.on("agent_end", (_event: any, ctx: any) => {
+    if (!isPersistentSession(ctx)) return;
     startSession(ctx);
     postHook("stop", sessionPayload(ctx));
   });
 
   pi.on("session_shutdown", (_event: any, ctx: any) => {
+    if (!isPersistentSession(ctx)) return;
     startSession(ctx);
     postHook("session-end", sessionPayload(ctx));
   });

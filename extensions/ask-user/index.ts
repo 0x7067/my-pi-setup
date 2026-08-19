@@ -132,12 +132,78 @@ export default function askUser(pi: ExtensionAPI) {
         );
       }
 
-      if (ctx.mode !== "tui") {
-        return reply(buildAskUserResultMessage({ kind: "no-ui" }));
-      }
-
       if (signal?.aborted) {
         return reply(buildAskUserResultMessage({ kind: "cancelled" }));
+      }
+
+      if (ctx.mode !== "tui" || typeof ctx.ui.custom !== "function") {
+        const dialogOpts = signal ? { signal } : undefined;
+        const dismissedOrCancelled = () =>
+          reply(
+            buildAskUserResultMessage({
+              kind: signal?.aborted ? "cancelled" : "dismissed",
+            }),
+          );
+
+        // Prefix every label with its 1-based position so entries stay
+        // unique even if two options (or an option and the free-text
+        // sentinel) share the same text - the pick is then resolved by
+        // position, never by string identity.
+        const displayToIndex = new Map<string, number>();
+        const dialogLabels = params.options.map((o, i) => {
+          const text = o.description
+            ? `${o.label} — ${o.description}`
+            : o.label;
+          const display = `${i + 1}. ${text}`;
+          displayToIndex.set(display, i);
+          return display;
+        });
+        const otherDisplay = `${params.options.length + 1}. Write my own answer`;
+        dialogLabels.push(otherDisplay);
+
+        const chosen = await ctx.ui.select(
+          params.question,
+          dialogLabels,
+          dialogOpts,
+        );
+        if (chosen === undefined) {
+          return dismissedOrCancelled();
+        }
+
+        if (chosen === otherDisplay) {
+          const custom = await ctx.ui.input(
+            params.question,
+            undefined,
+            dialogOpts,
+          );
+          const trimmed = custom?.trim();
+          if (!trimmed) {
+            return dismissedOrCancelled();
+          }
+          return reply(
+            buildAskUserResultMessage({ kind: "custom", answer: trimmed }),
+            trimmed,
+            true,
+          );
+        }
+
+        const index = displayToIndex.get(chosen);
+        if (
+          index === undefined ||
+          index < 0 ||
+          index >= params.options.length
+        ) {
+          return dismissedOrCancelled();
+        }
+        const selected = params.options[index];
+        return reply(
+          buildAskUserResultMessage({
+            kind: "selected",
+            answer: selected.label,
+            index: index + 1,
+          }),
+          selected.label,
+        );
       }
 
       const allOptions: DisplayOption[] = [

@@ -1,6 +1,6 @@
 {
   "lastChangelogVersion": "0.84.2",
-  "theme": "oxocarbon",
+  "theme": "deep-space",
   "defaultProvider": "synthetic",
   "defaultModel": "syn:large:text",
   "defaultThinkingLevel": "high",
@@ -10,16 +10,7 @@
   "showCacheMissNotices": true,
   "steeringMode": "all",
   "followUpMode": "all",
-  "skills": [
-    "-/Users/pedro/.agents/skills/luna-delegate",
-    "-/Users/pedro/.agents/skills/delegate-wave",
-    "-/Users/pedro/.agents/skills/time-off-draft-automation",
-    "-/Users/pedro/.agents/skills/em-docs-review-automation",
-    "-/Users/pedro/.agents/skills/notion-axi",
-    "-/Users/pedro/.agents/skills/pg-axi",
-    "-/Users/pedro/.agents/skills/ai-memory-routing-install",
-    "-/Users/pedro/.agents/skills/ai-memory-learning-maintenance"
-  ],
+  "skills": ["!/Users/pedro/.agents/skills/**"],
   "packages": [
     "npm:deepseek-peak-pricing-hours@0.1.1",
     {
