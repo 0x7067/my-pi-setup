@@ -1,0 +1,30 @@
+{
+  // Dynamic Context Pruning (DCP) configuration
+  // Full schema reference: https://github.com/your-org/pi-dynamic-context-pruning
+  //
+  // "$schema": "...",
+  //
+  // Uncomment and edit properties you want to override:
+  //
+  // "enabled": true,
+  // "debug": false,
+  // "manualMode": {
+  //   "enabled": false,
+  //   "automaticStrategies": true
+  // },
+  // "compress": {
+  //   "maxContextPercent": 0.8,
+  //   "minContextPercent": 0.4,
+  //   "nudgeFrequency": 5,
+  //   "iterationNudgeThreshold": 15,
+  //   "nudgeForce": "soft",
+  //   "protectedTools": ["compress", "write", "edit"],
+  //   "protectUserMessages": false
+  // },
+  // "strategies": {
+  //   "deduplication": { "enabled": true, "protectedTools": [] },
+  //   "purgeErrors": { "enabled": true, "turns": 4, "protectedTools": [] }
+  // },
+  // "protectedFilePatterns": [],
+  // "pruneNotification": "detailed"
+}

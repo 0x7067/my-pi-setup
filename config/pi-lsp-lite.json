@@ -1,0 +1,18 @@
+{
+  "servers": {
+    "python": {
+      "command": "basedpyright-langserver",
+      "args": ["--stdio"],
+      "rootPatterns": [
+        "pyrightconfig.json",
+        "basedpyrightconfig.json",
+        "pyproject.toml",
+        "setup.py",
+        "requirements.txt",
+        ".git"
+      ],
+      "diagnosticTimeout": 30000,
+      "maxRetries": 2
+    }
+  }
+}

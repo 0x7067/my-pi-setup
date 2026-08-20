@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## System
-- My main shell and tools are Bash and GNU
+- My main shell is Bash
 - I prefer bun or pnpm for Node
 - I prefer `uv` for all Python operations or tools
 - Package managers and languages are managed by `mise`

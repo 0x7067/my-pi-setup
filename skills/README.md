@@ -6,5 +6,5 @@ disable-model-invocation: true
 
 # Skill ownership
 
-- `~/.agents/skills` is the canonical source for cross-client skills. Pi exposes these through symlinks.
+- `~/.agents/skills` is the canonical source for cross-client skills. Pi loads that directory directly.
 - Physical directories under this folder are intentional Pi-specific forks and may use Pi-only tools or references.
