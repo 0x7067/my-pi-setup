@@ -1,16 +1,18 @@
 {
   "lastChangelogVersion": "0.84.2",
-  "theme": "github-dark-default",
-  "defaultProvider": "synthetic",
-  "defaultModel": "syn:large:text",
-  "defaultThinkingLevel": "high",
+  "theme": "oxocarbon",
+  "defaultProvider": "deepseek",
+  "defaultModel": "deepseek-v4-pro",
+  "defaultThinkingLevel": "max",
   "transport": "websocket-cached",
   "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
   "showCacheMissNotices": true,
   "steeringMode": "all",
   "followUpMode": "all",
-  "skills": ["!/Users/pedro/.agents/skills/**"],
+  "skills": [
+    "!/Users/pedro/.agents/skills/**"
+  ],
   "packages": [
     "npm:deepseek-peak-pricing-hours@0.1.1",
     {
@@ -28,9 +30,10 @@
   "compaction": {
     "enabled": true
   },
-  "quietStartup": true,
-  "tuiMode": "regular",
+  "quietStartup": false,
+  "tuiMode": "full",
   "markdown": {
     "mermaid": "streaming"
-  }
+  },
+  "collapseChangelog": true
 }
