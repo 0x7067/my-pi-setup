@@ -1,0 +1,12 @@
+# Reviewed 2026-08-20. These historical matches are non-secret file IDs,
+# public OAuth client metadata, or deliberate test fixtures.
+051e97517f5e669490fc950a87ed08052db77cc4:extensions/devin-auth/src/oauth/types.ts:generic-api-key:70
+5fea14d8d3984fb3abf3f4cbfb8a74df65fd89c0:extensions/devin-auth/src/oauth/types.ts:generic-api-key:70
+61deb0d58b43f62477dfb36ec3f07d7b9a57f230:extensions/openai-server-compaction/tests/live/openai-compaction-rpc-live.ts:generic-api-key:795
+be397b895ae9fdf5491cffdbc2815b38b34d6fba:docs/specs/2026-08-12-deep-space-theme/scratch/pen-v1.pen:generic-api-key:12160
+e52c3953bdcaef4b42e0e86beed344b1f6bdeef7:docs/specs/2026-08-12-deep-space-theme/pi-deep-space-signal-deck-chosen.pen:generic-api-key:12950
+e52c3953bdcaef4b42e0e86beed344b1f6bdeef7:docs/specs/2026-08-12-deep-space-theme/pi-deep-space-theme-variations.pen:generic-api-key:50028
+e52c3953bdcaef4b42e0e86beed344b1f6bdeef7:docs/specs/2026-08-12-deep-space-theme/scratch/pen-v2.pen:generic-api-key:23363
+e52c3953bdcaef4b42e0e86beed344b1f6bdeef7:docs/specs/2026-08-12-deep-space-theme/scratch/pen-v3.pen:generic-api-key:29186
+e52c3953bdcaef4b42e0e86beed344b1f6bdeef7:docs/specs/2026-08-12-deep-space-theme/scratch/pen-v4.pen:generic-api-key:38941
+fde4dcd461fc7cdbaec730e78e93203ded1b4038:extensions/summaries/transcript.test.ts:curl-auth-header:76
