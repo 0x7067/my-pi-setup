@@ -3,7 +3,7 @@
     {
       "label": "Hound web research",
       "summary": "Unauthenticated web search, page and PDF fetch, site crawl, screenshots, cache, and diagnostics",
-      "sourceIncludes": ["/extensions/hound-lazy.ts"]
+      "sourceIncludes": ["/extensions/hound-lazy/index.ts"]
     },
     {
       "label": "Browser Relay",

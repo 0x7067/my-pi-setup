@@ -8,7 +8,7 @@ import {
   searchCatalogTools,
   TOOL_SEARCH_GUIDELINES,
   type CatalogConfig,
-} from "../toolbox-lazy.ts";
+} from "./index.ts";
 
 type ToolInfo = ReturnType<ExtensionAPI["getAllTools"]>[number];
 
@@ -17,7 +17,7 @@ const catalogConfig: CatalogConfig = {
     {
       label: "Hound",
       summary: "web research fetch crawl screenshots",
-      sourceIncludes: ["hound-lazy.ts"],
+      sourceIncludes: ["hound-lazy/index.ts"],
     },
     {
       label: "Browser Relay",
@@ -59,13 +59,13 @@ test("discovers every tool from configured sources without naming tools", () => 
         "web_search",
         "Search the public web",
         "auto",
-        "/extensions/hound-lazy.ts",
+        "/extensions/hound-lazy/index.ts",
       ),
       tool(
         "future_hound_tool",
         "A future capability",
         "auto",
-        "/extensions/hound-lazy.ts",
+        "/extensions/hound-lazy/index.ts",
       ),
       tool(
         "agent_browser_fill",
@@ -90,13 +90,13 @@ test("ranks exact tool metadata above broad catalog matches", () => {
         "web_fetch",
         "Fetch a known page",
         "auto",
-        "/extensions/hound-lazy.ts",
+        "/extensions/hound-lazy/index.ts",
       ),
       tool(
         "web_search",
         "Search the public web",
         "auto",
-        "/extensions/hound-lazy.ts",
+        "/extensions/hound-lazy/index.ts",
       ),
       tool(
         "agent_browser_fill",

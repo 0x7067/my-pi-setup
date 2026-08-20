@@ -4,6 +4,7 @@ node_modules/
 npm/
 git/
 bin/
+/bun.lock
 
 # Pi runtime and private state
 sessions/

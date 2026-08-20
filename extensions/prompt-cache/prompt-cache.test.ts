@@ -6,7 +6,7 @@ import {
   createPromptCacheExtension,
   LONG_RETENTION_PROVIDERS,
   withLongCacheRetention,
-} from "../prompt-cache.ts";
+} from "./index.ts";
 
 type RegisteredProvider = {
   name: string;

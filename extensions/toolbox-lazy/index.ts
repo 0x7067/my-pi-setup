@@ -41,7 +41,7 @@ interface CatalogTool {
 }
 
 const config = JSON.parse(
-  readFileSync(new URL("./toolbox-lazy.json", import.meta.url), "utf8"),
+  readFileSync(new URL("./config.json", import.meta.url), "utf8"),
 ) as CatalogConfig;
 
 function searchableText(tool: ToolInfo, catalog: CatalogTool["catalog"]) {

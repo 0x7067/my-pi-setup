@@ -33,9 +33,9 @@ documented in [`extensions/devin-auth/README.md`](extensions/devin-auth/README.m
 
 Provider prompt caches depend on a byte-stable prefix (system prompt, tools,
 earlier messages). The measured baseline, the runtime and extension invariants
-that keep the prefix stable, and the applied levers (`extensions/prompt-cache.ts`
-for scoped long retention and the xAI affinity header, `models.json` OpenRouter
-session affinity) are documented in
+that keep the prefix stable, and the applied levers
+(`extensions/prompt-cache/index.ts` for scoped long retention and the xAI
+affinity header, `models.json` OpenRouter session affinity) are documented in
 [`docs/research/prompt-caching.md`](docs/research/prompt-caching.md). Check
 `/stats prompt` after changing extensions or settings; a stable payload with
 reuse under 80% is a regression.
@@ -44,7 +44,7 @@ reuse under 80% is a regression.
 
 Hound provides the web search, fetch, crawl, and screenshot tools. Its skills
 come from the pinned `git:github.com/dondai44423/master-fetch` package; its
-extension is loaded on first use by `extensions/hound-lazy.ts` from that
+extension is loaded on first use by `extensions/hound-lazy/index.ts` from that
 package's checkout under `git/`, so the MCP process does not start until a
 tool_search activates the `Hound web research` catalog.
 

@@ -1,6 +1,7 @@
 {
   "name": "pi-agent-config",
   "private": true,
+  "packageManager": "npm@11.19.0",
   "dependencies": {
     "@earendil-works/pi-ai": "0.84.2",
     "@earendil-works/pi-coding-agent": "0.84.2",
@@ -25,8 +26,8 @@
     "check": "npm run check:root && npm run check --workspaces --if-present",
     "check:root": "tsc --noEmit",
     "doctor": "node scripts/doctor.mjs",
-    "format": "prettier --write \"extensions/**/*.{ts,cjs,json}\" \"scripts/*.mjs\" \"package.json\" \"settings.json\" \"tsconfig.json\" \"README.md\" \"SETUP.md\"",
-    "format:check": "prettier --check \"extensions/**/*.{ts,cjs,json}\" \"scripts/*.mjs\" \"package.json\" \"settings.json\" \"tsconfig.json\" \"README.md\" \"SETUP.md\"",
+    "format": "prettier --write \"extensions/**/*.{ts,cjs,json}\" \"extensions/README.md\" \"scripts/*.mjs\" \"package.json\" \"settings.json\" \"tsconfig.json\" \"README.md\" \"SETUP.md\"",
+    "format:check": "prettier --check \"extensions/**/*.{ts,cjs,json}\" \"extensions/README.md\" \"scripts/*.mjs\" \"package.json\" \"settings.json\" \"tsconfig.json\" \"README.md\" \"SETUP.md\"",
     "postinstall": "effect-tsgo patch",
     "privacy:harden": "node scripts/harden-private-state.mjs",
     "test": "node --test --experimental-strip-types extensions/shared/*.test.ts extensions/toolbox-lazy/*.test.ts extensions/prompt-cache/*.test.ts extensions/workflows/*.test.ts && npm run test --workspaces --if-present",

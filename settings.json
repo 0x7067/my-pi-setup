@@ -1,6 +1,6 @@
 {
   "lastChangelogVersion": "0.84.2",
-  "theme": "deep-space",
+  "theme": "github-dark-default",
   "defaultProvider": "synthetic",
   "defaultModel": "syn:large:text",
   "defaultThinkingLevel": "high",

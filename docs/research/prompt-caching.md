@@ -11,7 +11,7 @@ The setup already reuses 89–99% of prompt tokens on every measured
 provider. The remaining losses are provider-side (cache-node eviction on
 Synthetic and Devin) or structural (compaction, model switches). Applied: scoped
 long cache retention for OpenRouter and Anthropic, an xAI affinity header
-(`extensions/prompt-cache.ts`), and OpenRouter session-affinity headers in
+(`extensions/prompt-cache/index.ts`), and OpenRouter session-affinity headers in
 `models.json`. Levers left as-is are listed with their tradeoff.
 
 ## Measured baseline
@@ -82,20 +82,20 @@ The extension audit found no extension that injects volatile text into the
 system prompt or tools. Dynamic data (git status, cost, quota, clock) is
 written only to TUI widgets. The remaining event-gated cache breaks are:
 
-| source                                       | when it breaks                                    | verdict                                                   |
-| -------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- |
-| `extensions/toolbox-lazy.ts` `tool_search`   | once, when a catalog is loaded (tools appended)   | intended; keeps ~30 KB of tools out of the default prefix |
-| `pi-lens` `context` hook guidance injection  | one turn's new content re-billed once             | negligible; history before the injection is untouched     |
-| `@aliou/pi-synthetic` web-search entitlement | turn 2 if the quota check resolves after turn 1   | not visible in the data; left enabled                     |
-| `openai-server-compaction`                   | rewrites payload for `openai/*` (direct API) only | inert; no direct OpenAI key is configured                 |
-| compaction                                   | once per compaction                               | structural; `keepRecentTokens` keeps the tail verbatim    |
+| source                                           | when it breaks                                    | verdict                                                   |
+| ------------------------------------------------ | ------------------------------------------------- | --------------------------------------------------------- |
+| `extensions/toolbox-lazy/index.ts` `tool_search` | once, when a catalog is loaded (tools appended)   | intended; keeps ~30 KB of tools out of the default prefix |
+| `pi-lens` `context` hook guidance injection      | one turn's new content re-billed once             | negligible; history before the injection is untouched     |
+| `@aliou/pi-synthetic` web-search entitlement     | turn 2 if the quota check resolves after turn 1   | not visible in the data; left enabled                     |
+| `openai-server-compaction`                       | rewrites payload for `openai/*` (direct API) only | inert; no direct OpenAI key is configured                 |
+| compaction                                       | once per compaction                               | structural; `keepRecentTokens` keeps the tail verbatim    |
 
 The `stats` extension already warns when a stable payload falls below 80%
 reuse (`/stats prompt`) and `/stats summary` reports reuse per model.
 
 ## Applied changes
 
-- `extensions/prompt-cache.ts` overrides the OpenRouter and Anthropic
+- `extensions/prompt-cache/index.ts` overrides the OpenRouter and Anthropic
   providers' `streamSimple` to pass `cacheRetention: "long"` (unless a caller
   such as compaction passes `none`). Pi then emits `cache_control.ttl: "1h"`
   for Anthropic-format requests and `prompt_cache_key` plus
@@ -190,8 +190,8 @@ earlier messages. When you write or vendor an extension:
 3. Call `pi.setActiveTools` only with the current order plus appended names.
    Let newly registered tools auto-append.
 4. Register tools at load time with static descriptions. If a tool must be
-   optional, put it in a `toolbox-lazy.json` catalog so activation happens
-   once and deliberately.
+   optional, put it in the `extensions/toolbox-lazy/config.json` catalog so
+   activation happens once and deliberately.
 5. Do not toggle `PI_CACHE_RETENTION`, thinking level, or model inside a
    session unless the user asks; each change re-bills the prefix.
 6. Check `/stats prompt` after a change. A stable payload with reuse under

@@ -24,4 +24,21 @@ them in directories you trust.
 
 ![Pi setup interface](assets/pi-setup.jpeg)
 
-Setup and privacy instructions are in [`SETUP.md`](SETUP.md).
+## Repository map
+
+- [`extensions/`](extensions/README.md) contains the extension entry points,
+  their tests, and shared extension code.
+- [`skills/`](skills/README.md) contains Pi skills and their supporting files.
+- [`config/`](config/) contains checked-in defaults consumed by extensions.
+- [`docs/research/`](docs/research/) records measured behavior and design
+  rationale. [`docs/specs/`](docs/specs/) holds implementation plans and design
+  work.
+- [`scripts/`](scripts/) contains setup validation and private-state hardening.
+- [`themes/`](themes/) contains the checked-in Pi themes.
+
+Runtime state such as sessions, credentials, package checkouts, generated
+workflows, and project memory lives beside this source tree but stays ignored
+by Git.
+
+Setup and privacy instructions are in [`SETUP.md`](SETUP.md). Start with the
+[extension map](extensions/README.md) when adding or changing an extension.

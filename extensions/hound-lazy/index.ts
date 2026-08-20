@@ -3,7 +3,7 @@ import { createJiti } from "jiti";
 import { access } from "node:fs/promises";
 
 const houndModulePath = new URL(
-  "../git/github.com/dondai44423/master-fetch/pi-extension/extensions/hound.ts",
+  "../../git/github.com/dondai44423/master-fetch/pi-extension/extensions/hound.ts",
   import.meta.url,
 ).pathname;
 
