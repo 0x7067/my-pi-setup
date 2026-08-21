@@ -119,12 +119,16 @@ export default function generativeStatus(pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     if (ctx.mode !== "tui") return;
     applyState(ctx, style, "thinking", undefined, reducedMotion);
+    ctx.ui.setHiddenThinkingLabel("");
+    ctx.ui.setWorkingVisible(!ctx.isIdle());
   });
 
   pi.on("agent_start", (_event, ctx) => {
     activeTools.clear();
-    if (ctx.mode === "tui")
+    if (ctx.mode === "tui") {
       applyState(ctx, style, "thinking", undefined, reducedMotion);
+      ctx.ui.setWorkingVisible(true);
+    }
   });
 
   pi.on("tool_execution_start", (event, ctx) => {
@@ -147,8 +151,9 @@ export default function generativeStatus(pi: ExtensionAPI) {
     );
   });
 
-  pi.on("agent_settled", () => {
+  pi.on("agent_settled", (_event, ctx) => {
     activeTools.clear();
+    if (ctx.mode === "tui") ctx.ui.setWorkingVisible(false);
   });
 
   pi.registerCommand("loader", {
@@ -186,6 +191,8 @@ export default function generativeStatus(pi: ExtensionAPI) {
   pi.on("session_shutdown", (_event, ctx) => {
     activeTools.clear();
     if (ctx.mode !== "tui") return;
+    ctx.ui.setHiddenThinkingLabel();
+    ctx.ui.setWorkingVisible(true);
     ctx.ui.setWorkingIndicator();
     ctx.ui.setWorkingMessage();
   });

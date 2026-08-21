@@ -37,6 +37,48 @@ the first turn of a session, which is the best proxy for "re-billed prefix".
 Total spend $43.41. Total re-billed prefix tokens: 1.9M from full breaks and
 3.3M from partial drops ("drip"), most of it on flat-rate providers.
 
+### OpenAI OAuth idle-loss follow-up (2026-08-21)
+
+The aggregate table hides a severe idle-boundary failure on the
+`openai-codex` OAuth backend. A newer session sample split by request gap found:
+
+| request class | requests | misses | uncached input | cache read |  reuse |
+| ------------- | -------: | -----: | -------------: | ---------: | -----: |
+| short gap     |       71 |      0 |        136,814 |  5,886,464 | 97.73% |
+| long gap      |        8 |      8 |        905,542 |          0 |  0.00% |
+
+Pi is configured with `transport: "auto"`. For Codex OAuth, that means a
+WebSocket attempt first and SSE fallback on transport failure. On a reusable
+WebSocket, Pi sends the new input delta with `previous_response_id`; with
+`store: false`, OpenAI documents that continuation state as local to the live
+connection. That transport optimization is distinct from billable prompt-cache
+retention: valid delta continuation can still report `cacheRead: 0`.
+
+Controlled tests ruled out the client-side levers that were available:
+
+- Stock Pi reused the prompt after about 15 seconds, then missed after about
+  310 seconds. SSE also missed after about 170 seconds.
+- `thread-id`, `x-codex-routing-hint`, stable `client_metadata`, and a
+  content-addressed `prompt_cache_key` all preserved immediate reuse but missed
+  after the idle boundary.
+- The OAuth backend rejected `prompt_cache_options` as unsupported.
+- `@howaboua/pi-codex-conversion` 3.0.18 was installed and tested with its
+  cache keepalive shortened to 60 seconds. Its separate prewarm lane succeeded
+  twice, yet the real request at 180 seconds still reported
+  `input=3525, cacheRead=0`. The package was removed after the failed test.
+- A local adapter experiment then chained OpenAI's documented
+  `generate: false` warmups on the exact live WebSocket every 20 seconds. A
+  35,388-token initial request followed by a request at 180 seconds still
+  reported `input=35403, cacheRead=0`. The adapter patch was removed.
+
+The remaining loss is therefore upstream of Pi's prompt construction and
+transport selection. Keep `auto`: WebSocket delta continuation avoids replaying
+the full payload and improves active tool loops, but neither transport affinity
+nor keepalive currently extends the OAuth backend's billable cache lifetime.
+The practical mitigations are to avoid idle gaps during expensive loops,
+compact before resuming a very large stale context, or use an API-key provider
+that exposes supported cache-retention controls.
+
 Where the losses come from:
 
 - Every cold start is a session start or a mid-session model change. None
@@ -82,18 +124,27 @@ The extension audit found no extension that injects volatile text into the
 system prompt or tools. Dynamic data (git status, cost, quota, clock) is
 written only to TUI widgets. The remaining event-gated cache breaks are:
 
-| source                                           | when it breaks                                    | verdict                                                   |
-| ------------------------------------------------ | ------------------------------------------------- | --------------------------------------------------------- |
-| `extensions/toolbox-lazy/index.ts` `tool_search` | once, when a catalog is loaded (tools appended)   | intended; keeps ~30 KB of tools out of the default prefix |
-| `pi-lens` `context` hook guidance injection      | one turn's new content re-billed once             | negligible; history before the injection is untouched     |
-| `@aliou/pi-synthetic` web-search entitlement     | turn 2 if the quota check resolves after turn 1   | not visible in the data; left enabled                     |
-| `openai-server-compaction`                       | rewrites payload for `openai/*` (direct API) only | inert; no direct OpenAI key is configured                 |
-| compaction                                       | once per compaction                               | structural; `keepRecentTokens` keeps the tail verbatim    |
+| source                                           | when it breaks                                    | verdict                                                  |
+| ------------------------------------------------ | ------------------------------------------------- | -------------------------------------------------------- |
+| `extensions/toolbox-lazy/index.ts` `tool_search` | providers without deferred-tool support           | Codex keeps its prefix; activation state survives resume |
+| `pi-lens` `context` hook guidance injection      | one turn's new content re-billed once             | negligible; history before the injection is untouched    |
+| `@aliou/pi-synthetic` web-search entitlement     | turn 2 if the quota check resolves after turn 1   | not visible in the data; left enabled                    |
+| `openai-server-compaction`                       | rewrites payload for `openai/*` (direct API) only | inert; no direct OpenAI key is configured                |
+| compaction                                       | once per compaction                               | structural; `keepRecentTokens` keeps the tail verbatim   |
 
 The `stats` extension already warns when a stable payload falls below 80%
 reuse (`/stats prompt`) and `/stats summary` reports reuse per model.
 
 ## Applied changes
+
+- `extensions/toolbox-lazy/index.ts` records enabled catalogs in branch-local
+  custom session entries and restores them on resume or tree navigation. Pi
+  already serializes tools activated by a tool result as deferred definitions
+  for capable Codex models. The extension now removes those tools' duplicate
+  prompt snippets and guidelines from the outgoing Codex `instructions`, so
+  activation changes only the append-only conversation suffix instead of
+  invalidating the system/tool prefix. Older sessions are restored from their
+  persisted `tool_search` results when no state entry exists.
 
 - `extensions/prompt-cache/index.ts` overrides the OpenRouter and Anthropic
   providers' `streamSimple` to pass `cacheRetention: "long"` (unless a caller
@@ -169,12 +220,17 @@ uncached input.
 
 Sources: DeepSeek https://api-docs.deepseek.com/guides/kv_cache/ ·
 OpenAI https://developers.openai.com/api/docs/guides/prompt-caching ·
+OpenAI WebSocket mode https://developers.openai.com/api/docs/guides/websocket-mode ·
 Anthropic https://platform.claude.com/docs/en/build-with-claude/prompt-caching ·
 Z.ai https://docs.z.ai/guides/capabilities/cache ·
 xAI https://docs.x.ai/developers/advanced-api-usage/prompt-caching ·
 OpenRouter https://openrouter.ai/docs/guides/best-practices/prompt-caching ·
 Manus https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus ·
 Anthropic https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
+
+Related implementation evidence:
+https://pi.dev/packages/@howaboua/pi-codex-conversion ·
+https://github.com/NousResearch/hermes-agent/issues/47335
 
 ## Rules for extensions in this repository
 
@@ -191,7 +247,7 @@ earlier messages. When you write or vendor an extension:
    Let newly registered tools auto-append.
 4. Register tools at load time with static descriptions. If a tool must be
    optional, put it in the `extensions/toolbox-lazy/config.json` catalog so
-   activation happens once and deliberately.
+   capable Codex models can load it through deferred transcript definitions.
 5. Do not toggle `PI_CACHE_RETENTION`, thinking level, or model inside a
    session unless the user asks; each change re-bills the prefix.
 6. Check `/stats prompt` after a change. A stable payload with reuse under

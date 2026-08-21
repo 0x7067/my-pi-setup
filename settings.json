@@ -1,18 +1,16 @@
 {
   "lastChangelogVersion": "0.84.2",
   "theme": "oxocarbon",
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-luna",
-  "defaultThinkingLevel": "max",
+  "defaultProvider": "kimi-coding",
+  "defaultModel": "k3",
+  "defaultThinkingLevel": "high",
   "transport": "auto",
   "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
   "showCacheMissNotices": false,
   "steeringMode": "all",
   "followUpMode": "all",
-  "skills": [
-    "!/Users/pedro/.agents/skills/**"
-  ],
+  "skills": ["!/Users/pedro/.agents/skills/**"],
   "packages": [
     {
       "source": "npm:@53able/pi-agent-browser@0.6.1",
@@ -28,7 +26,7 @@
   "compaction": {
     "enabled": true
   },
-  "quietStartup": false,
+  "quietStartup": true,
   "tuiMode": "full",
   "terminal": {
     "clearOnShrink": true

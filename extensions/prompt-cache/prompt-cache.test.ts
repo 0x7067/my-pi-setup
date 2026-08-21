@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
+  addCodexStablePrefixBreakpoint,
   affinityHeader,
+  alignCodexPromptCacheKey,
+  CODEX_CACHE_BREAKPOINT_ENV,
+  CODEX_CACHE_BREAKPOINT_TEXT,
+  codexCacheBreakpointEnabled,
+  codexCacheIdentityHeaders,
   createPromptCacheExtension,
   LONG_RETENTION_PROVIDERS,
   withLongCacheRetention,
@@ -77,6 +83,72 @@ test("affinity header applies only to providers keyed by header", () => {
   assert.equal(affinityHeader("xai", ""), undefined);
 });
 
+const codexModel = {
+  provider: "openai-codex",
+  api: "openai-codex-responses",
+  id: "gpt-5.6-luna",
+};
+
+test("Codex cache identity uses one stable value in every routing header", () => {
+  assert.deepEqual(codexCacheIdentityHeaders(codexModel, "session-1"), {
+    "session-id": "session-1",
+    "thread-id": "session-1",
+    "x-client-request-id": "session-1",
+  });
+  assert.deepEqual(
+    codexCacheIdentityHeaders({ ...codexModel, provider: "openai" }, "s"),
+    {},
+  );
+});
+
+test("Codex payload cache key matches the session identity", () => {
+  const payload = { model: "gpt-5.6-luna", prompt_cache_key: "old" };
+  assert.deepEqual(alignCodexPromptCacheKey(payload, codexModel, "session-1"), {
+    model: "gpt-5.6-luna",
+    prompt_cache_key: "session-1",
+  });
+  assert.equal(alignCodexPromptCacheKey(payload, codexModel, ""), payload);
+});
+
+test("Codex breakpoint adds one stable developer boundary for GPT-5.6", () => {
+  const payload = {
+    model: "gpt-5.6-luna",
+    input: [{ type: "message", role: "user", content: [] }],
+  };
+  const result = addCodexStablePrefixBreakpoint(
+    payload,
+    codexModel,
+  ) as typeof payload;
+  assert.equal(result.input.length, 2);
+  assert.deepEqual(result.input[0], {
+    type: "message",
+    role: "developer",
+    content: [
+      {
+        type: "input_text",
+        text: CODEX_CACHE_BREAKPOINT_TEXT,
+        prompt_cache_breakpoint: { mode: "explicit" },
+      },
+    ],
+  });
+  assert.equal(addCodexStablePrefixBreakpoint(result, codexModel), result);
+  assert.equal(
+    addCodexStablePrefixBreakpoint(payload, {
+      ...codexModel,
+      id: "gpt-5.5",
+    }),
+    payload,
+  );
+});
+
+test("Codex breakpoint feature flag is explicit", () => {
+  assert.equal(codexCacheBreakpointEnabled({}), false);
+  assert.equal(
+    codexCacheBreakpointEnabled({ [CODEX_CACHE_BREAKPOINT_ENV]: "true" }),
+    true,
+  );
+});
+
 test("before_provider_headers sets the xAI conversation header from the session id", () => {
   const { pi, handlers } = fakePi();
   createPromptCacheExtension((() => "stream") as never)(pi);
@@ -99,4 +171,39 @@ test("before_provider_headers sets the xAI conversation header from the session 
   };
   handler(other, ctx("openrouter"));
   assert.deepEqual(other.headers, {});
+
+  const codex = {
+    type: "before_provider_headers",
+    headers: {} as Record<string, string>,
+  };
+  handler(codex, {
+    model: codexModel,
+    sessionManager: { getSessionId: () => "session-9" },
+  });
+  assert.deepEqual(codex.headers, {
+    "session-id": "session-9",
+    "thread-id": "session-9",
+    "x-client-request-id": "session-9",
+  });
+});
+
+test("before_provider_request aligns the Codex cache key by default", () => {
+  const { pi, handlers } = fakePi();
+  createPromptCacheExtension((() => "stream") as never)(pi);
+  const [handler] = handlers.get("before_provider_request")!;
+  const result = handler(
+    {
+      type: "before_provider_request",
+      payload: { model: "gpt-5.6-luna", input: [], prompt_cache_key: "old" },
+    },
+    {
+      model: codexModel,
+      sessionManager: { getSessionId: () => "session-9" },
+    },
+  );
+  assert.deepEqual(result, {
+    model: "gpt-5.6-luna",
+    input: [],
+    prompt_cache_key: "session-9",
+  });
 });

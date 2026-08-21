@@ -30,3 +30,15 @@
 
 - Use `$writing-for-agents` when creating or editing agent instructions or skills.
 - Commit messages: repository conventions first; concise imperative subject, rationale in the body.
+
+## Project rules
+
+### Jspace rating
+
+- Rate runs only when jspace is in `on` mode and the active TUI context supports rating.
+- Treat `observe`, `off`, unclear, and failing states as prompt-neutral and non-rating.
+
+### No-mistakes controls
+
+- Routine gate-management commands may run without repeated approval prompts.
+- Keep `no-mistakes axi run` separately gated when launching a new validation run should still require an explicit ask.

@@ -6,6 +6,7 @@ import type {
 import { Type } from "typebox";
 
 const LOADER_TOOL = "tool_search";
+export const TOOLBOX_STATE_ENTRY = "toolbox-lazy-state";
 const DEFAULT_LIMIT = 1;
 export const TOOL_SEARCH_GUIDELINES = [
   "For unauthenticated web research, call tool_search with query 'Hound web research'. For authenticated Chrome or interactive page work, call tool_search with query 'Browser Relay'. Do not use skill_search for these capabilities.",
@@ -38,6 +39,22 @@ type ToolInfo = ReturnType<ExtensionAPI["getAllTools"]>[number];
 interface CatalogTool {
   catalog: CatalogConfig["catalogs"][number];
   tool: ToolInfo;
+}
+
+interface ToolboxState {
+  enabledCatalogs: string[];
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 const config = JSON.parse(
@@ -136,9 +153,120 @@ export function formatCatalogActivation(
   return `${state} ${catalogs.join(", ")} and ready to use: ${tools.join(", ")}. Call one of these tools directly; do not install anything.`;
 }
 
+/** Restore branch-local catalog state, including sessions from before state entries existed. */
+export function restoreCatalogLabels(
+  entries: readonly unknown[],
+  knownLabels: readonly string[],
+) {
+  const known = new Set(knownLabels);
+  const enabled = new Set<string>();
+  for (const candidate of entries) {
+    const entry = record(candidate);
+    if (!entry) continue;
+    if (entry.type === "custom" && entry.customType === TOOLBOX_STATE_ENTRY) {
+      enabled.clear();
+      const data = record(entry.data);
+      for (const label of stringArray(data?.enabledCatalogs)) {
+        if (known.has(label)) enabled.add(label);
+      }
+      continue;
+    }
+    if (entry.type !== "message") continue;
+    const message = record(entry.message);
+    if (message?.role !== "toolResult" || message.toolName !== LOADER_TOOL) {
+      continue;
+    }
+    const details = record(message.details);
+    for (const label of stringArray(details?.catalogs)) {
+      if (known.has(label)) enabled.add(label);
+    }
+  }
+  return knownLabels.filter((label) => enabled.has(label));
+}
+
+/**
+ * Capable Codex models serialize tools activated by a tool result as deferred
+ * definitions. Remove their duplicate prompt metadata so activation changes
+ * only the append-only conversation suffix.
+ */
+export function stabilizeDeferredToolInstructions(
+  instructions: string,
+  catalogTools: readonly Pick<ToolInfo, "name" | "promptGuidelines">[],
+  activeToolNames: readonly string[],
+  allTools: readonly Pick<ToolInfo, "name" | "promptGuidelines">[],
+) {
+  const active = new Set(activeToolNames);
+  const catalogNames = new Set(
+    catalogTools
+      .filter((tool) => active.has(tool.name))
+      .map((tool) => tool.name),
+  );
+  if (catalogNames.size === 0) return instructions;
+
+  const catalogGuidelines = new Set(
+    catalogTools
+      .filter((tool) => active.has(tool.name))
+      .flatMap((tool) => tool.promptGuidelines ?? []),
+  );
+  const nonCatalogGuidelines = new Set(
+    allTools
+      .filter((tool) => active.has(tool.name) && !catalogNames.has(tool.name))
+      .flatMap((tool) => tool.promptGuidelines ?? []),
+  );
+  const removableGuidelines = new Set(
+    [...catalogGuidelines].filter(
+      (guideline) => !nonCatalogGuidelines.has(guideline),
+    ),
+  );
+
+  let section: "tools" | "guidelines" | undefined;
+  return instructions
+    .split("\n")
+    .filter((line) => {
+      if (line === "Available tools:") {
+        section = "tools";
+        return true;
+      }
+      if (line.startsWith("In addition to the tools above")) {
+        section = undefined;
+        return true;
+      }
+      if (line === "Guidelines:") {
+        section = "guidelines";
+        return true;
+      }
+      if (line.startsWith("Pi documentation ")) {
+        section = undefined;
+        return true;
+      }
+      if (section === "tools" && line.startsWith("- ")) {
+        const separator = line.indexOf(": ", 2);
+        const name = separator === -1 ? "" : line.slice(2, separator);
+        return !catalogNames.has(name);
+      }
+      if (section === "guidelines" && line.startsWith("- ")) {
+        return !removableGuidelines.has(line.slice(2));
+      }
+      return true;
+    })
+    .join("\n");
+}
+
+export function supportsDeferredCatalogLoading(model: unknown) {
+  const candidate = record(model);
+  const compat = record(candidate?.compat);
+  return (
+    candidate?.api === "openai-codex-responses" &&
+    (compat?.supportsAdditionalTools === true ||
+      compat?.supportsToolSearch === true)
+  );
+}
+
 export default function lazyToolbox(pi: ExtensionAPI) {
   let catalogTools: CatalogTool[] = [];
+  let hasCustomSystemPrompt = false;
   const enabledCatalogs = new Set<string>();
+  const catalogLabels = config.catalogs.map(({ label }) => label);
 
   const refreshCatalog = () => {
     catalogTools = discoverCatalogTools(pi.getAllTools(), config);
@@ -173,6 +301,26 @@ export default function lazyToolbox(pi: ExtensionAPI) {
       active.has(tool.name),
     ).length;
     return `${loaded}/${catalogTools.length} specialized tools loaded`;
+  };
+
+  const orderedEnabledCatalogs = () =>
+    catalogLabels.filter((label) => enabledCatalogs.has(label));
+
+  const persistCatalogState = () => {
+    pi.appendEntry(TOOLBOX_STATE_ENTRY, {
+      enabledCatalogs: orderedEnabledCatalogs(),
+    } satisfies ToolboxState);
+  };
+
+  const restoreCatalogState = (ctx: ExtensionContext) => {
+    enabledCatalogs.clear();
+    for (const label of restoreCatalogLabels(
+      ctx.sessionManager.getBranch(),
+      catalogLabels,
+    )) {
+      enabledCatalogs.add(label);
+    }
+    syncCatalogTools();
   };
 
   const labels = config.catalogs.map(({ label }) => label).join(", ");
@@ -211,12 +359,17 @@ export default function lazyToolbox(pi: ExtensionAPI) {
       }
 
       const selection = expandMatchingCatalogs(catalogTools, matches);
-      for (const catalog of selection.catalogs) enabledCatalogs.add(catalog);
+      let stateChanged = false;
+      for (const catalog of selection.catalogs) {
+        if (!enabledCatalogs.has(catalog)) stateChanged = true;
+        enabledCatalogs.add(catalog);
+      }
       const active = pi.getActiveTools();
       const added = selection.tools.filter((name) => !active.includes(name));
       if (added.length > 0) {
         pi.setActiveTools([...new Set([...active, ...added])]);
       }
+      if (stateChanged) persistCatalogState();
       return {
         content: [
           {
@@ -233,15 +386,37 @@ export default function lazyToolbox(pi: ExtensionAPI) {
     },
   });
 
-  pi.on("session_start", () => {
-    enabledCatalogs.clear();
-    syncCatalogTools();
+  pi.on("session_start", (_event, ctx) => {
+    restoreCatalogState(ctx);
+  });
+
+  pi.on("session_tree", (_event, ctx) => {
+    restoreCatalogState(ctx);
   });
 
   // Some extensions register tools asynchronously after session_start. Sync at
   // the final pre-request boundary, and avoid setActiveTools when nothing changed.
-  pi.on("before_agent_start", () => {
+  pi.on("before_agent_start", (event) => {
+    hasCustomSystemPrompt =
+      typeof event.systemPromptOptions.customPrompt === "string";
     syncCatalogTools();
+  });
+
+  pi.on("before_provider_request", (event, ctx) => {
+    if (hasCustomSystemPrompt || !supportsDeferredCatalogLoading(ctx.model)) {
+      return;
+    }
+    const payload = record(event.payload);
+    if (!payload || typeof payload.instructions !== "string") return;
+    refreshCatalog();
+    const instructions = stabilizeDeferredToolInstructions(
+      payload.instructions,
+      catalogTools.map(({ tool }) => tool),
+      pi.getActiveTools(),
+      pi.getAllTools(),
+    );
+    if (instructions === payload.instructions) return;
+    return { ...payload, instructions };
   });
 
   pi.registerCommand("toolbox", {
@@ -255,10 +430,15 @@ export default function lazyToolbox(pi: ExtensionAPI) {
       }
 
       if (query === "all") {
-        for (const { label } of config.catalogs) enabledCatalogs.add(label);
+        let stateChanged = false;
+        for (const { label } of config.catalogs) {
+          if (!enabledCatalogs.has(label)) stateChanged = true;
+          enabledCatalogs.add(label);
+        }
         const active = pi.getActiveTools();
         const names = catalogTools.map(({ tool }) => tool.name);
         pi.setActiveTools([...new Set([...active, ...names])]);
+        if (stateChanged) persistCatalogState();
         ctx.ui.notify(`Loaded all catalog tools · ${catalogStatus()}`, "info");
         return;
       }
@@ -269,9 +449,14 @@ export default function lazyToolbox(pi: ExtensionAPI) {
         return;
       }
       const selection = expandMatchingCatalogs(catalogTools, matches);
-      for (const catalog of selection.catalogs) enabledCatalogs.add(catalog);
+      let stateChanged = false;
+      for (const catalog of selection.catalogs) {
+        if (!enabledCatalogs.has(catalog)) stateChanged = true;
+        enabledCatalogs.add(catalog);
+      }
       const active = pi.getActiveTools();
       pi.setActiveTools([...new Set([...active, ...selection.tools])]);
+      if (stateChanged) persistCatalogState();
       ctx.ui.notify(`Loaded: ${selection.catalogs.join(", ")}`, "info");
     },
   });

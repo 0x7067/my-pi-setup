@@ -4,6 +4,7 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   ReadonlyFooterDataProvider,
+  Theme,
 } from "@earendil-works/pi-coding-agent";
 import {
   getCapabilities,
@@ -21,44 +22,15 @@ import {
   isModelInfoState,
 } from "../shared/dashboard-state.ts";
 
-type Rgb = [number, number, number];
-interface RenderableNode {
-  children?: RenderableNode[];
-  invalidate(): void;
-  render(width: number): string[];
+interface FooterPart {
+  text: string;
+  priority: number;
+  order: number;
 }
 
-interface DashboardTui extends RenderableNode {
-  requestRender(force?: boolean): void;
-}
-
-const RESET = "\x1b[0m";
-const BOLD = "\x1b[1m";
-// Oxocarbon accent, the same magenta the theme uses for anything you can
-// act on. Keep in step with `accent` in ~/.config/oxocarbon/palette.toml.
-const ACCENT: Rgb = [238, 83, 150];
-const HIGHLIGHT: Rgb = [255, 126, 182];
-const TEXT: Rgb = [242, 244, 248];
-const DIM: Rgb = [141, 141, 141];
-
-function shade(amount: number): Rgb {
-  return [
-    Math.round(ACCENT[0] * amount),
-    Math.round(ACCENT[1] * amount),
-    Math.round(ACCENT[2] * amount),
-  ];
-}
-
-// Climbs from dark bronze to the highlight and falls back, so the gradient
-// loops without a seam.
-const PALETTE: Rgb[] = [
-  shade(0.64),
-  shade(0.83),
-  ACCENT,
-  HIGHLIGHT,
-  ACCENT,
-  shade(0.83),
-];
+const FULL_MASTHEAD_MIN_WIDTH = 100;
+const COMPACT_FOOTER_MAX_WIDTH = 71;
+const WIDE_FOOTER_MIN_WIDTH = 100;
 const TITLE_LINES = [
   "██████╗  ██╗",
   "██╔══██╗ ██║",
@@ -67,8 +39,6 @@ const TITLE_LINES = [
   "██║      ██║",
   "╚═╝      ╚═╝",
 ];
-const ANSI_PATTERN =
-  /[\u001B\u009B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[a-zA-Z\d]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
 // eslint-disable-next-line no-control-regex
 const OSC_PATTERN =
   /(?:\u001b\]|\u009d)(?:[^\u0007\u001b\u009c]|\u001b(?!\\))*(?:\u0007|\u001b\\|\u009c)/g;
@@ -85,84 +55,6 @@ function sanitizeTerminalLabel(text: string) {
     .replace(/[\u0000-\u001f\u007f-\u009f]/g, "");
 }
 
-function mix(a: number, b: number, amount: number) {
-  return Math.round(a + (b - a) * amount);
-}
-
-function sampleGradient(position: number) {
-  const wrapped = ((position % 1) + 1) % 1;
-  const scaled = wrapped * PALETTE.length;
-  const index = Math.floor(scaled);
-  const nextIndex = (index + 1) % PALETTE.length;
-  const amount = scaled - index;
-  const start = PALETTE[index]!;
-  const end = PALETTE[nextIndex]!;
-
-  return [
-    mix(start[0], end[0], amount),
-    mix(start[1], end[1], amount),
-    mix(start[2], end[2], amount),
-  ] satisfies Rgb;
-}
-
-function foreground([red, green, blue]: Rgb, text: string) {
-  return `\x1b[38;2;${red};${green};${blue}m${text}${RESET}`;
-}
-
-function gradientText(text: string, phase: number) {
-  const characters = [...text];
-  const span = Math.max(characters.length - 1, 1);
-
-  return characters
-    .map((character, index) =>
-      character === " "
-        ? character
-        : foreground(sampleGradient(index / span + phase), character),
-    )
-    .join("");
-}
-
-function hasChildren(
-  component: RenderableNode,
-): component is RenderableNode & { children: RenderableNode[] } {
-  return Array.isArray(component.children);
-}
-
-function renderedText(component: RenderableNode) {
-  try {
-    return component.render(200).join("\n").replace(ANSI_PATTERN, "");
-  } catch {
-    return "";
-  }
-}
-
-function hideThemesSection(component: RenderableNode) {
-  if (!hasChildren(component)) return false;
-
-  for (let index = 0; index < component.children.length; index += 1) {
-    const child = component.children[index]!;
-    const firstLine = renderedText(child)
-      .split("\n")
-      .find((line) => line.trim())
-      ?.trim();
-
-    if (firstLine === "[Themes]") {
-      const removeCount =
-        component.children[index + 1] &&
-        renderedText(component.children[index + 1]!).trim() === ""
-          ? 2
-          : 1;
-      component.children.splice(index, removeCount);
-      component.invalidate();
-      return true;
-    }
-
-    if (hideThemesSection(child)) return true;
-  }
-
-  return false;
-}
-
 function formatTokens(tokens: number) {
   if (tokens < 1_000) return `${tokens}`;
   if (tokens < 1_000_000) return `${Math.round(tokens / 1_000)}k`;
@@ -176,13 +68,13 @@ function formatDirectory(cwd: string) {
   return sanitizeTerminalLabel(display);
 }
 
-function columns(left: string, right: string, width: number) {
+function columns(left: string, right: string, width: number, leftShare = 0.45) {
   if (!right) return truncateToWidth(left, width);
 
   const naturalGap = width - visibleWidth(left) - visibleWidth(right);
   if (naturalGap >= 1) return `${left}${" ".repeat(naturalGap)}${right}`;
 
-  const leftWidth = Math.max(1, Math.floor(width * 0.45));
+  const leftWidth = Math.max(1, Math.floor(width * leftShare));
   const rightWidth = Math.max(1, width - leftWidth - 1);
   const fittedLeft = truncateToWidth(left, leftWidth);
   const fittedRight = truncateToWidth(right, rightWidth);
@@ -193,6 +85,43 @@ function columns(left: string, right: string, width: number) {
   return truncateToWidth(
     `${fittedLeft}${" ".repeat(gap)}${fittedRight}`,
     width,
+  );
+}
+
+function joinParts(theme: Theme, parts: string[]) {
+  return parts.filter(Boolean).join(theme.fg("dim", " · "));
+}
+
+function columnWidths(width: number, leftShare: number) {
+  const left = Math.max(1, Math.floor(width * leftShare));
+  return { left, right: Math.max(1, width - left - 1) };
+}
+
+function fitPriorityParts(theme: Theme, parts: FooterPart[], width: number) {
+  let selected: FooterPart[] = [];
+
+  for (const part of [...parts].sort(
+    (left, right) => right.priority - left.priority || left.order - right.order,
+  )) {
+    if (!part.text) continue;
+    const candidate = [...selected, part].sort(
+      (left, right) => left.order - right.order,
+    );
+    if (
+      visibleWidth(
+        joinParts(
+          theme,
+          candidate.map(({ text }) => text),
+        ),
+      ) <= width
+    ) {
+      selected = candidate;
+    }
+  }
+
+  return joinParts(
+    theme,
+    selected.map(({ text }) => text),
   );
 }
 
@@ -212,8 +141,6 @@ export default function uiCustomization(pi: ExtensionAPI) {
   let modelInfo = emptyModelInfoState();
   let gitInfo = emptyGitInfoState();
   let requestRender: (() => void) | undefined;
-  let activeTui: DashboardTui | undefined;
-  let themeRemovalTimers: Array<ReturnType<typeof setTimeout>> = [];
 
   const stopModelListener = pi.events.on(MODEL_INFO_CHANNEL, (value) => {
     if (!isModelInfoState(value)) return;
@@ -227,45 +154,42 @@ export default function uiCustomization(pi: ExtensionAPI) {
     requestRender?.();
   });
 
-  function scheduleThemeRemoval(tui: DashboardTui) {
-    for (const timer of themeRemovalTimers) clearTimeout(timer);
-    themeRemovalTimers = [];
-
-    for (const delay of [0, 50, 250, 1_000]) {
-      themeRemovalTimers.push(
-        setTimeout(() => {
-          if (hideThemesSection(tui)) tui.requestRender(true);
-        }, delay),
-      );
-    }
-  }
-
   function install(ctx: ExtensionContext) {
     if (ctx.mode !== "tui") return;
 
     const directoryLabel = formatDirectory(ctx.cwd);
 
-    ctx.ui.setHeader((tui) => {
-      activeTui = tui;
+    ctx.ui.setHeader((tui, theme) => {
       requestRender = () => tui.requestRender();
-      scheduleThemeRemoval(tui);
 
       let cachedWidth: number | undefined;
       let cachedLines: string[] | undefined;
+      let showFullMasthead: boolean | undefined;
 
       return {
         render(width: number) {
           if (cachedWidth === width && cachedLines) return cachedLines;
 
           const masthead = columns(
-            `${BOLD}${gradientText("pi", 0.18)}${RESET}${foreground(DIM, " · ")}${foreground(TEXT, title)}`,
-            foreground(DIM, "session · interactive"),
+            `${theme.fg("accent", theme.bold("pi"))}${theme.fg("dim", " · ")}${theme.fg("text", title)}`,
+            theme.fg("dim", "session · interactive"),
             width,
           );
-          const art = TITLE_LINES.map((line, row) =>
-            truncateToWidth(`  ${gradientText(line, row * 0.045)}`, width),
-          );
           cachedWidth = width;
+          showFullMasthead ??= width >= FULL_MASTHEAD_MIN_WIDTH;
+          if (!showFullMasthead) {
+            cachedLines = [masthead];
+            return cachedLines;
+          }
+
+          const art = TITLE_LINES.map((line, row) => {
+            const color =
+              row === 0 || row === TITLE_LINES.length - 1 ? "muted" : "accent";
+            return truncateToWidth(
+              `  ${theme.fg(color, theme.bold(line))}`,
+              width,
+            );
+          });
           cachedLines = [masthead, "", ...art, ""];
           return cachedLines;
         },
@@ -295,6 +219,9 @@ export default function uiCustomization(pi: ExtensionAPI) {
           cached = undefined;
         },
         render(width: number) {
+          const compact = width <= COMPACT_FOOTER_MAX_WIDTH;
+          const wide = width >= WIDE_FOOTER_MIN_WIDTH;
+          const rowWidths = columnWidths(width, 0.65);
           const statuses = footerData.getExtensionStatuses();
           if (
             cached?.width === width &&
@@ -305,55 +232,123 @@ export default function uiCustomization(pi: ExtensionAPI) {
             return cached.lines;
           }
 
-          const fileLabel = gitInfo.changedFiles === 1 ? "file" : "files";
-          let git = gitInfo.branch
-            ? `${gitInfo.branch} · ${gitInfo.changedFiles} ${fileLabel} changed`
-            : "";
-
-          if (gitInfo.pullRequest) {
+          const gitParts: FooterPart[] = [];
+          if (gitInfo.isRepository && gitInfo.pullRequest) {
             const prLabel = `PR #${gitInfo.pullRequest.number}`;
+            const styledPr = theme.fg("accent", prLabel);
             const linkedPr = getCapabilities().hyperlinks
-              ? hyperlink(prLabel, gitInfo.pullRequest.url)
-              : prLabel;
-            git += ` · ${linkedPr}`;
+              ? hyperlink(styledPr, gitInfo.pullRequest.url)
+              : styledPr;
+            gitParts.push({ text: linkedPr, priority: 100, order: 1 });
           }
+          if (gitInfo.isRepository) {
+            gitParts.push({
+              text: theme.fg("muted", gitInfo.branch ?? "detached"),
+              priority: 90,
+              order: 0,
+            });
+          }
+          if (gitInfo.isRepository && !compact) {
+            const fileLabel = gitInfo.changedFiles === 1 ? "file" : "files";
+            gitParts.push({
+              text: theme.fg(
+                "muted",
+                `${gitInfo.changedFiles} ${fileLabel} changed`,
+              ),
+              priority: 10,
+              order: 2,
+            });
+          }
+          const git = gitInfo.isRepository
+            ? fitPriorityParts(theme, gitParts, rowWidths.right)
+            : compact
+              ? ""
+              : theme.fg("dim", "not a repo");
 
           const contextPercent =
             modelInfo.contextPercent === null
-              ? "?"
-              : `${Math.round(modelInfo.contextPercent)}`;
+              ? null
+              : Math.round(modelInfo.contextPercent);
           const contextWindow =
             modelInfo.contextWindow > 0
               ? formatTokens(modelInfo.contextWindow)
-              : "?";
-          const tps =
-            modelInfo.tokensPerSecond === null
-              ? "— tok/s"
-              : `${Math.round(modelInfo.tokensPerSecond)} tok/s`;
-          const usage = `${contextPercent}%/${contextWindow} · $${modelInfo.cost.toFixed(2)} · ${tps}`;
+              : null;
+          const context =
+            contextPercent === null
+              ? ""
+              : theme.fg(
+                  contextPercent >= 90
+                    ? "error"
+                    : contextPercent >= 75
+                      ? "warning"
+                      : "muted",
+                  wide && contextWindow
+                    ? `ctx ${contextPercent}%/${contextWindow}${contextPercent >= 90 ? "!" : ""}`
+                    : `ctx ${contextPercent}%${contextPercent >= 90 ? "!" : ""}`,
+                );
+
+          const modelName = modelInfo.modelName || modelInfo.modelId;
           const model = modelInfo.provider
-            ? `${modelInfo.provider}/${modelInfo.modelId} · ${modelInfo.thinking}`
-            : modelInfo.modelId;
+            ? compact
+              ? modelName
+              : wide
+                ? `${modelInfo.provider}/${modelName} · thinking ${modelInfo.thinking}`
+                : `${modelName} · thinking ${modelInfo.thinking}`
+            : "model unavailable";
 
           // Keep the footer at the same two-row height as Pi's startup footer.
-          // Extension statuses arrive asynchronously, so fold them into the
-          // telemetry row instead of adding rows that move the editor.
-          const statusText = Array.from(statuses.entries())
+          // Active extension statuses lead the operational row. Secondary
+          // telemetry drops away before anything actionable is truncated.
+          const statusParts = Array.from(statuses.entries())
             .sort(([a], [b]) => a.localeCompare(b))
             .flatMap(([, text]) => text.split("\n"))
-            .filter(Boolean)
-            .join(theme.fg("dim", " · "));
-          const telemetry = statusText
-            ? `${usage}${theme.fg("dim", " · ")}${statusText}`
-            : usage;
+            .map(sanitizeTerminalLabel)
+            .filter(Boolean);
+          const displayedStatuses =
+            compact && statusParts.length > 1
+              ? [`${statusParts.length} active`]
+              : statusParts;
+          const operationalParts: FooterPart[] = [];
+          if (context) {
+            operationalParts.push({ text: context, priority: 100, order: 0 });
+          }
+          for (const [index, status] of displayedStatuses.entries()) {
+            operationalParts.push({
+              text: theme.fg("text", status),
+              priority: 80 - index,
+              order: index + 1,
+            });
+          }
+          if (wide) {
+            if (modelInfo.cost > 0) {
+              operationalParts.push({
+                text: theme.fg("muted", `$${modelInfo.cost.toFixed(2)}`),
+                priority: 20,
+                order: operationalParts.length,
+              });
+            }
+            if (modelInfo.generating) {
+              operationalParts.push({
+                text: theme.fg(
+                  "muted",
+                  modelInfo.tokensPerSecond === null
+                    ? "generating"
+                    : `${Math.round(modelInfo.tokensPerSecond)} tok/s`,
+                ),
+                priority: 30,
+                order: operationalParts.length,
+              });
+            }
+          }
+          const operational = fitPriorityParts(
+            theme,
+            operationalParts,
+            rowWidths.left,
+          );
 
           const lines = [
             columns(directory, theme.fg("muted", model), width),
-            columns(
-              theme.fg("muted", telemetry),
-              theme.fg("muted", git),
-              width,
-            ),
+            columns(operational, git, width, 0.65),
           ];
           cached = {
             width,
@@ -378,16 +373,9 @@ export default function uiCustomization(pi: ExtensionAPI) {
     install(ctx);
   });
 
-  pi.on("resources_discover", () => {
-    if (activeTui) scheduleThemeRemoval(activeTui);
-  });
-
   pi.on("session_shutdown", (_event, ctx) => {
     stopModelListener();
     stopGitListener();
-    for (const timer of themeRemovalTimers) clearTimeout(timer);
-    themeRemovalTimers = [];
-    activeTui = undefined;
     requestRender = undefined;
     if (ctx.mode === "tui") {
       ctx.ui.setHeader(undefined);

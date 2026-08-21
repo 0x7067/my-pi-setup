@@ -46,7 +46,10 @@ Hound provides the web search, fetch, crawl, and screenshot tools. Its skills
 come from the pinned `git:github.com/dondai44423/master-fetch` package; its
 extension is loaded on first use by `extensions/hound-lazy/index.ts` from that
 package's checkout under `git/`, so the MCP process does not start until a
-tool_search activates the `Hound web research` catalog.
+tool_search activates the `Hound web research` catalog. Catalog activation is
+stored in the session branch and restored on resume. OpenAI Codex models keep
+the stable system/tool prefix and receive newly loaded definitions through
+Pi's native deferred-tool transcript items.
 
 ## Private state
 
