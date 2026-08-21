@@ -1,13 +1,13 @@
 {
   "lastChangelogVersion": "0.84.2",
   "theme": "oxocarbon",
-  "defaultProvider": "zai",
-  "defaultModel": "glm-5.3",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-luna",
   "defaultThinkingLevel": "max",
-  "transport": "websocket-cached",
+  "transport": "auto",
   "defaultProjectTrust": "ask",
   "hideThinkingBlock": true,
-  "showCacheMissNotices": true,
+  "showCacheMissNotices": false,
   "steeringMode": "all",
   "followUpMode": "all",
   "skills": [
@@ -32,6 +32,9 @@
   },
   "quietStartup": false,
   "tuiMode": "full",
+  "terminal": {
+    "clearOnShrink": true
+  },
   "markdown": {
     "mermaid": "streaming"
   },

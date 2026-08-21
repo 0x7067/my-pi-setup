@@ -10,7 +10,7 @@ import {
   type Model,
   type ModelThinkingLevel,
 } from "@earendil-works/pi-ai";
-import { Box, Markdown, Text } from "@earendil-works/pi-tui";
+import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import type { ReasoningLevel, SummaryConfig } from "./config.ts";
 import type { RunRecap } from "./summarizer.ts";
 
@@ -33,16 +33,20 @@ class RecapCard {
   }
 
   render(width: number) {
-    const box = new Box(1, 1, (text) => this.theme.bg("customMessageBg", text));
+    const box = new Box(1, 0, (text) => this.theme.bg("customMessageBg", text));
+    const source = `${this.data.provider}/${this.data.model} · ${this.data.reasoning}${this.data.fallback ? " · local fallback" : ""}`;
     const title =
       this.theme.fg("accent", "✦ ") +
-      this.theme.fg("customMessageLabel", this.theme.bold("Run recap"));
+      this.theme.fg("customMessageLabel", this.theme.bold("Run recap")) +
+      (this.expanded ? this.theme.fg("dim", ` · ${source}`) : "");
     box.addChild(new Text(title, 0, 0));
+    box.addChild(new Spacer(1));
     box.addChild(
-      new Markdown(this.data.recap, 0, 1, getMarkdownTheme(), {
+      new Markdown(this.data.recap, 0, 0, getMarkdownTheme(), {
         color: (text) => this.theme.fg("customMessageText", text),
       }),
     );
+    box.addChild(new Spacer(1));
     box.addChild(
       new Text(
         `${this.theme.fg("accent", this.theme.bold("Next:"))} ${this.theme.fg("customMessageText", this.data.next)}`,
@@ -50,10 +54,6 @@ class RecapCard {
         0,
       ),
     );
-    if (this.expanded) {
-      const source = `${this.data.provider}/${this.data.model} · ${this.data.reasoning}${this.data.fallback ? " · local fallback" : ""}`;
-      box.addChild(new Text(this.theme.fg("dim", source), 0, 1));
-    }
     return box.render(width);
   }
 

@@ -211,8 +211,21 @@ export default function askUser(pi: ExtensionAPI) {
         { label: "Write my own answer…", isOther: true },
       ];
 
+      const showOverlay = <T>(
+        factory: Parameters<typeof ctx.ui.custom<T>>[0],
+      ) =>
+        ctx.ui.custom<T>(factory, {
+          overlay: true,
+          overlayOptions: {
+            anchor: "center",
+            margin: 1,
+            maxHeight: "100%",
+            width: "95%",
+          },
+        });
+
       const showQuestion = (uiSignal: AbortSignal) =>
-        ctx.ui.custom<SelectionResult>((tui, theme, _kb, done) => {
+        showOverlay<SelectionResult>((tui, theme, _kb, done) => {
           let optionIndex = 0;
           let editMode = false;
           let cachedLines: string[] | undefined;
