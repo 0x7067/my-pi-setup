@@ -7,12 +7,12 @@ subdirectories would prevent Pi from finding their entry points.
 
 ## Extension map
 
-| Area                   | Extensions                                                                                                         |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Agent operations       | `background-terminals`, `handoff`, `subagents`, `workflows`                                                        |
-| Tools and integrations | `ask-user`, `atuin`, `browser-relay`, `copy-all`, `custom-ocr`, `file-search`, `hound-lazy`, `toolbox-lazy`        |
-| Interface and status   | `generative-status`, `git-info`, `jspace`, `model-info`, `stats`, `terminal-status-title`, `ui-customization`      |
-| Models and runtime     | `calm`, `devin-auth`, `omp-natives`, `openai-server-compaction`, `prompt-cache`, `spark-strict-tools`, `summaries` |
+| Area                   | Extensions                                                                                                                             |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent operations       | `background-terminals`, `handoff`, `subagents`, `workflows`                                                                            |
+| Tools and integrations | `ask-user`, `atuin`, `browser-relay`, `copy-all`, `custom-ocr`, `file-search`, `hound-lazy`, `toolbox-lazy`                            |
+| Interface and status   | `deepseek-peak-pricing`, `generative-status`, `git-info`, `jspace`, `model-info`, `stats`, `terminal-status-title`, `ui-customization` |
+| Models and runtime     | `devin-auth`, `omp-natives`, `openai-server-compaction`, `prompt-cache`, `spark-strict-tools`, `summaries`                             |
 
 `shared` contains code used by several extensions and has no entry point of its
 own. `synthetic.json` configures the installed Synthetic package.

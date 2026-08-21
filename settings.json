@@ -14,7 +14,6 @@
     "!/Users/pedro/.agents/skills/**"
   ],
   "packages": [
-    "npm:deepseek-peak-pricing-hours@0.1.1",
     {
       "source": "npm:@53able/pi-agent-browser@0.6.1",
       "skills": []
@@ -23,8 +22,7 @@
       "source": "git:github.com/dondai44423/master-fetch@v13.1.2",
       "extensions": []
     },
-    "npm:@aliou/pi-synthetic@0.25.1",
-    "npm:pi-lsp-lite@0.5.1"
+    "npm:pi-lens"
   ],
   "treeFilterMode": "default",
   "compaction": {
