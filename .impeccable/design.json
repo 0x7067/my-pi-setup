@@ -1,0 +1,299 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-21T03:20:30Z",
+  "title": "Design System: My Pi setup",
+  "extensions": {
+    "colorMeta": {
+      "signal-magenta": {
+        "role": "primary",
+        "displayName": "Signal Magenta",
+        "canonical": "#ee5396",
+        "tonalRamp": [
+          "oklch(15% 0.04 357.3)",
+          "oklch(27% 0.09 357.3)",
+          "oklch(39% 0.14 357.3)",
+          "oklch(51% 0.18 357.3)",
+          "oklch(63% 0.20 357.3)",
+          "oklch(75% 0.17 357.3)",
+          "oklch(87% 0.09 357.3)",
+          "oklch(95% 0.03 357.3)"
+        ]
+      },
+      "signal-magenta-highlight": {
+        "role": "primary",
+        "displayName": "Signal Magenta Highlight",
+        "canonical": "#ff7eb6",
+        "tonalRamp": [
+          "oklch(15% 0.03 354.5)",
+          "oklch(27% 0.07 354.5)",
+          "oklch(39% 0.12 354.5)",
+          "oklch(51% 0.16 354.5)",
+          "oklch(63% 0.17 354.5)",
+          "oklch(75% 0.17 354.5)",
+          "oklch(87% 0.09 354.5)",
+          "oklch(95% 0.03 354.5)"
+        ]
+      },
+      "carbon-black": {
+        "role": "neutral",
+        "displayName": "Carbon Black",
+        "canonical": "#161616",
+        "tonalRamp": [
+          "#161616",
+          "#262626",
+          "#393939",
+          "#525252",
+          "#6f6f6f",
+          "#8d8d8d",
+          "#c6c6c6",
+          "#f2f4f8"
+        ]
+      },
+      "raised-carbon": {
+        "role": "neutral",
+        "displayName": "Raised Carbon",
+        "canonical": "#262626",
+        "tonalRamp": [
+          "#161616",
+          "#262626",
+          "#393939",
+          "#525252",
+          "#6f6f6f",
+          "#8d8d8d",
+          "#c6c6c6",
+          "#f2f4f8"
+        ]
+      },
+      "selected-graphite": {
+        "role": "neutral",
+        "displayName": "Selected Graphite",
+        "canonical": "#393939",
+        "tonalRamp": [
+          "#161616",
+          "#262626",
+          "#393939",
+          "#525252",
+          "#6f6f6f",
+          "#8d8d8d",
+          "#c6c6c6",
+          "#f2f4f8"
+        ]
+      },
+      "structure-gray": {
+        "role": "neutral",
+        "displayName": "Structure Gray",
+        "canonical": "#525252",
+        "tonalRamp": [
+          "#161616",
+          "#262626",
+          "#393939",
+          "#525252",
+          "#6f6f6f",
+          "#8d8d8d",
+          "#c6c6c6",
+          "#f2f4f8"
+        ]
+      },
+      "quiet-gray": {
+        "role": "neutral",
+        "displayName": "Quiet Gray",
+        "canonical": "#8d8d8d",
+        "tonalRamp": [
+          "#161616",
+          "#262626",
+          "#393939",
+          "#525252",
+          "#6f6f6f",
+          "#8d8d8d",
+          "#c6c6c6",
+          "#f2f4f8"
+        ]
+      },
+      "secondary-text": {
+        "role": "neutral",
+        "displayName": "Secondary Text",
+        "canonical": "#a8a8a8",
+        "tonalRamp": [
+          "#161616",
+          "#262626",
+          "#393939",
+          "#525252",
+          "#6f6f6f",
+          "#8d8d8d",
+          "#c6c6c6",
+          "#f2f4f8"
+        ]
+      },
+      "primary-text": {
+        "role": "neutral",
+        "displayName": "Primary Text",
+        "canonical": "#f2f4f8",
+        "tonalRamp": [
+          "#161616",
+          "#262626",
+          "#393939",
+          "#525252",
+          "#6f6f6f",
+          "#8d8d8d",
+          "#c6c6c6",
+          "#f2f4f8"
+        ]
+      },
+      "diagnostic-cyan": {
+        "role": "secondary",
+        "displayName": "Diagnostic Cyan",
+        "canonical": "#3ddbd9",
+        "tonalRamp": [
+          "oklch(15% 0.03 193.7)",
+          "oklch(27% 0.06 193.7)",
+          "oklch(39% 0.09 193.7)",
+          "oklch(51% 0.12 193.7)",
+          "oklch(63% 0.13 193.7)",
+          "oklch(75% 0.13 193.7)",
+          "oklch(87% 0.07 193.7)",
+          "oklch(95% 0.02 193.7)"
+        ]
+      },
+      "alarm-coral": {
+        "role": "tertiary",
+        "displayName": "Alarm Coral",
+        "canonical": "#ff8389",
+        "tonalRamp": [
+          "oklch(15% 0.03 18.4)",
+          "oklch(27% 0.07 18.4)",
+          "oklch(39% 0.11 18.4)",
+          "oklch(51% 0.15 18.4)",
+          "oklch(63% 0.15 18.4)",
+          "oklch(75% 0.15 18.4)",
+          "oklch(87% 0.08 18.4)",
+          "oklch(95% 0.03 18.4)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Block Display",
+        "purpose": "Session masthead only."
+      },
+      "title": {
+        "displayName": "Terminal Title",
+        "purpose": "Pane names and current state."
+      },
+      "body": {
+        "displayName": "Terminal Body",
+        "purpose": "Commands, output, paths, metadata, and explanations."
+      }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Session Masthead",
+      "kind": "nav",
+      "refersTo": "terminal-masthead",
+      "description": "A quiet identity row with one bright signal and dim session metadata.",
+      "html": "<div class=\"ds-masthead\"><strong>pi</strong><span> · ~/.pi/agent</span><small>session · interactive</small></div>",
+      "css": ".ds-masthead { display: flex; align-items: baseline; gap: 0; padding: 8px 16px; background: #161616; color: #f2f4f8; font: 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace; } .ds-masthead strong { color: #ee5396; font-weight: 700; } .ds-masthead small { margin-left: auto; color: #8d8d8d; font: inherit; }"
+    },
+    {
+      "name": "Editor Frame",
+      "kind": "input",
+      "refersTo": "terminal-panel",
+      "description": "A shallow editor bounded by thin signal rules and a bright cursor.",
+      "html": "<div class=\"ds-editor\"><div class=\"ds-rule\"></div><div class=\"ds-input\"><span class=\"ds-cursor\"> </span></div><div class=\"ds-rule\"></div></div>",
+      "css": ".ds-editor { width: 100%; background: #161616; padding: 6px 0; } .ds-rule { height: 1px; background: #ee5396; } .ds-input { min-height: 28px; padding: 8px 0; color: #f2f4f8; font: 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace; } .ds-cursor { display: inline-block; width: 9px; height: 16px; background: #f2f4f8; } .ds-editor:focus-within .ds-rule { background: #ff7eb6; }"
+    },
+    {
+      "name": "Pricing Timeline",
+      "kind": "custom",
+      "refersTo": "status-active",
+      "description": "A one-row status with semantic color, glyph density, and dim transition metadata.",
+      "html": "<div class=\"ds-timeline\"><strong>● DeepSeek PEAK</strong><span> · Beijing </span><b>[░░░░░░░░░▓▓█░░▓▓▓▓░░░░░░]</b><span> · ends 01:00 local</span></div>",
+      "css": ".ds-timeline { padding: 8px 0; background: #161616; color: #8d8d8d; white-space: nowrap; font: 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace; } .ds-timeline strong, .ds-timeline b { color: #ee5396; font-weight: 700; }"
+    },
+    {
+      "name": "Selected Row",
+      "kind": "nav",
+      "refersTo": "selected-row",
+      "description": "A full-width tonal selection with a small accent marker and quiet metadata.",
+      "html": "<div class=\"ds-selected-row\"><b>❯ ■ build</b><span>running · 12s</span></div>",
+      "css": ".ds-selected-row { display: flex; justify-content: space-between; padding: 5px 8px; background: #393939; color: #f2f4f8; font: 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace; } .ds-selected-row b { color: #ee5396; } .ds-selected-row span { color: #a8a8a8; } .ds-selected-row:focus-visible { outline: 1px solid #ee5396; outline-offset: 1px; }"
+    },
+    {
+      "name": "Terminal Pane",
+      "kind": "card",
+      "refersTo": "terminal-panel",
+      "description": "A box-drawn operational pane with a bright title and restrained metadata.",
+      "html": "<section class=\"ds-pane\"><header>Background terminals <span>2 active</span></header><div>■ tests <small>running · 18s</small></div><div>■ dev server <small>done · 42s</small></div></section>",
+      "css": ".ds-pane { padding: 12px 16px; border: 1px solid #525252; background: #161616; color: #f2f4f8; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; } .ds-pane header { margin-bottom: 8px; color: #ee5396; font-weight: 700; } .ds-pane header span { float: right; color: #8d8d8d; font-weight: 400; } .ds-pane small { color: #a8a8a8; }"
+    },
+    {
+      "name": "Run Recap",
+      "kind": "card",
+      "refersTo": "terminal-panel",
+      "description": "A tonal recap that gives the next action the strongest local emphasis.",
+      "html": "<article class=\"ds-recap\"><header><b>✦ Run recap</b><span> · Codex Luna</span></header><p>Polished the pricing widget and verified the terminal layout.</p><p><strong>Next:</strong> reload Pi and inspect the live status.</p></article>",
+      "css": ".ds-recap { padding: 12px 16px; background: #262626; color: #f2f4f8; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; } .ds-recap header b, .ds-recap strong { color: #ee5396; } .ds-recap header span { color: #8d8d8d; } .ds-recap p { margin: 8px 0 0; }"
+    },
+    {
+      "name": "Action Hints",
+      "kind": "custom",
+      "refersTo": "status-active",
+      "description": "A one-row key legend with bright controls and dim action names.",
+      "html": "<div class=\"ds-hints\"><b>enter</b> open <i>·</i> <b>k</b> kill <i>·</i> <b>esc</b> close</div>",
+      "css": ".ds-hints { padding: 6px 0; background: #161616; color: #8d8d8d; font: 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace; } .ds-hints b { color: #ee5396; font-weight: 700; } .ds-hints i { color: #525252; font-style: normal; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Signal Console",
+    "overview": "The Signal Console is a quiet, cinematic terminal system. Most of the screen recedes into carbon and cool gray so the few active signals can carry real meaning. It favors breathing room, exact alignment, and stable information over dashboard density.\n\nPrecision comes from the terminal cell itself. Weight, contrast, box-drawn structure, and short labels create hierarchy without pretending the terminal is a desktop app. Color is operational. It identifies focus, state, and risk; it does not fill empty space.",
+    "keyCharacteristics": [
+      "A carbon field with tonal structure instead of shadow.",
+      "Signal Magenta reserved for action, focus, and important warnings.",
+      "Monospace hierarchy built from weight, contrast, and alignment.",
+      "Responsive density that removes secondary detail before changing height."
+    ],
+    "rules": [
+      {
+        "name": "The Signal Rarity Rule",
+        "body": "Signal Magenta marks something active, actionable, or urgent. Never spend it on a whole pane or a decorative border.",
+        "section": "colors"
+      },
+      {
+        "name": "The Color Is Not Meaning Rule",
+        "body": "Every semantic color needs a word, glyph, shape, or stable position that communicates the same state.",
+        "section": "colors"
+      },
+      {
+        "name": "The One-Cell Rule",
+        "body": "Align text to terminal cells and keep labels short enough to scan without backtracking.",
+        "section": "typography"
+      },
+      {
+        "name": "The Stable Editor Rule",
+        "body": "Asynchronous state must not move the editor. Remove secondary detail before adding a row.",
+        "section": "layout"
+      },
+      {
+        "name": "The No Shadow Rule",
+        "body": "Use contrast and containment to show depth. A terminal shadow is noise unless the host terminal draws the window itself.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use Pi theme roles so every surface works across checked-in themes.",
+      "Do preserve primary state at narrow widths and remove optional metadata first.",
+      "Do pair semantic color with text, glyph density, or position.",
+      "Do leave empty carbon around important information when the terminal has room."
+    ],
+    "donts": [
+      "Don't hard-code a new color when an existing semantic role expresses the state.",
+      "Don't turn every row into a bordered container.",
+      "Don't use Signal Magenta as ambient decoration.",
+      "Don't add asynchronous rows that move the editor.",
+      "Don't imitate web cards, pills, gradients, or shadows inside the TUI."
+    ]
+  }
+}
