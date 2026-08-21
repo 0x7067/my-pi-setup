@@ -19,9 +19,9 @@ const PEAK_WINDOWS: PeakWindow[] = [
   { startHour: 14, endHour: 18 },
 ];
 
-const BLOCK_FULL = "█";
+const BLOCK_PEAK = "▓";
 const BLOCK_OFF = "░";
-const BLOCK_CURRENT = "▓";
+const BLOCK_CURRENT = "█";
 const WIDGET_KEY = "deepseek-bar";
 
 interface PeakInfo {
@@ -88,7 +88,7 @@ function getPeakInfo(): PeakInfo {
     isPeak,
     currentHour: hour,
     label: isPeak ? "PEAK" : "Off-Peak",
-    nextTransition: `${isPeak ? "until" : "next"} ${formatLocalTime(beijingHourToLocal(transitionHour))}`,
+    nextTransition: `${isPeak ? "ends" : "starts"} ${formatLocalTime(beijingHourToLocal(transitionHour))}`,
   };
 }
 
@@ -101,7 +101,7 @@ function renderBar(info: PeakInfo, width: number) {
   if (width >= 26) {
     return `[${hours
       .map((hour) =>
-        hour.isCurrent ? BLOCK_CURRENT : hour.isPeak ? BLOCK_FULL : BLOCK_OFF,
+        hour.isCurrent ? BLOCK_CURRENT : hour.isPeak ? BLOCK_PEAK : BLOCK_OFF,
       )
       .join("")}]`;
   }
@@ -114,7 +114,7 @@ function renderBar(info: PeakInfo, width: number) {
         first.isCurrent || second.isCurrent
           ? BLOCK_CURRENT
           : first.isPeak || second.isPeak
-            ? BLOCK_FULL
+            ? BLOCK_PEAK
             : BLOCK_OFF,
       );
     }
@@ -143,30 +143,35 @@ export default function deepseekPeakPricing(pi: ExtensionAPI) {
           invalidate() {},
           render(width: number) {
             const info = getPeakInfo();
-            const dotColor = info.isPeak ? "error" : "success";
-            const dot = theme.fg(dotColor, "●");
+            const statusColor = info.isPeak ? "warning" : "success";
+            const dot = theme.fg(statusColor, "●");
             const label = theme.fg(
-              dotColor,
-              theme.bold(` DeepSeek ${info.label} `),
+              statusColor,
+              theme.bold(` DeepSeek ${info.label}`),
             );
-            const transition = theme.fg("dim", ` ${info.nextTransition} local`);
+            const status = dot + label;
+            const timelineLabel = theme.fg("dim", " · Beijing ");
+            const transition = theme.fg(
+              "dim",
+              ` · ${info.nextTransition} local`,
+            );
             const available = Math.max(
               0,
-              width - visibleWidth(dot + label + transition),
+              width - visibleWidth(status + timelineLabel + transition),
             );
             const bar = renderBar(info, Math.min(48, available))
               .split("")
               .map((character) => {
                 if (character === BLOCK_CURRENT)
-                  return theme.fg("accent", character);
-                if (character === BLOCK_FULL)
-                  return theme.fg("muted", character);
+                  return theme.fg(statusColor, character);
+                if (character === BLOCK_PEAK)
+                  return theme.fg("warning", character);
                 return theme.fg("dim", character);
               })
               .join("");
 
             const line = truncateToWidth(
-              dot + label + bar + transition,
+              status + (bar ? timelineLabel + bar : "") + transition,
               width,
               "",
             );

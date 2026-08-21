@@ -25,9 +25,13 @@ test("renders the peak-pricing status without an extra margin row", () => {
     },
   } as unknown as ExtensionAPI);
 
+  const coloredCharacters: Array<{ color: string; text: string }> = [];
   const theme = {
     bold: (text: string) => text,
-    fg: (_color: string, text: string) => text,
+    fg: (color: string, text: string) => {
+      coloredCharacters.push({ color, text });
+      return text;
+    },
   } as unknown as Theme;
   const context = {
     hasUI: true,
@@ -47,7 +51,23 @@ test("renders the peak-pricing status without an extra margin row", () => {
   assert.ok(widgetFactory);
   const component = widgetFactory({ requestRender() {} }, theme);
 
-  assert.equal(component.render(100).length, 1);
-  assert.match(component.render(100)[0] ?? "", /DeepSeek/);
+  const wideLine = component.render(100);
+  assert.equal(wideLine.length, 1);
+  assert.match(wideLine[0] ?? "", /DeepSeek/);
+  assert.match(wideLine[0] ?? "", /Beijing/);
+
+  const peakBlocks = coloredCharacters.filter(({ text }) => text === "▓");
+  assert.ok(peakBlocks.length > 0);
+  assert.ok(peakBlocks.every(({ color }) => color === "warning"));
+
+  const statusDot = coloredCharacters.find(({ text }) => text === "●");
+  const currentBlock = coloredCharacters.find(({ text }) => text === "█");
+  assert.ok(statusDot);
+  assert.ok(currentBlock);
+  assert.equal(currentBlock.color, statusDot.color);
+
+  const narrowLine = component.render(40)[0] ?? "";
+  assert.match(narrowLine, /DeepSeek/);
+  assert.doesNotMatch(narrowLine, /Beijing|\[/);
   onSessionShutdown?.();
 });

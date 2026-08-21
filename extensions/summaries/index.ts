@@ -2,7 +2,11 @@ import type {
   ExtensionAPI,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { loadSummaryConfig, saveSummaryConfig } from "./src/config.ts";
+import {
+  loadSummaryConfig,
+  runSummariesEnabled,
+  saveSummaryConfig,
+} from "./src/config.ts";
 import { summarizeRun } from "./src/summarizer.ts";
 import {
   buildFallbackRecap,
@@ -41,6 +45,8 @@ async function waitForCancellation(
 }
 
 export default function (pi: ExtensionAPI) {
+  if (!runSummariesEnabled()) return;
+
   const runBoundary = createRunBoundary();
   const activeSummaries = new Map<AbortController, Promise<void>>();
   let sessionActive = false;
@@ -67,13 +73,14 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", (_event, ctx) => {
-    if (ctx.mode !== "tui") return;
+    if (ctx.mode !== "tui" || !runSummariesEnabled()) return;
     runBoundary.begin(ctx.sessionManager.getLeafId());
   });
 
   pi.on("agent_settled", (_event, ctx) => {
     const run = runBoundary.settle();
-    if (!run || ctx.mode !== "tui" || !sessionActive) return;
+    if (!run || !runSummariesEnabled() || ctx.mode !== "tui" || !sessionActive)
+      return;
 
     const entries = getRunEntries(
       ctx.sessionManager.getBranch(),

@@ -39,6 +39,10 @@ export const PRIVATE_CONFIG_PATH = join(
   extensionDirectory,
   "config.private.json",
 );
+export const ENABLED_CONFIG_PATH = join(
+  extensionDirectory,
+  "../../config/summaries",
+);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -65,6 +69,15 @@ export function parseSummaryConfig(value: unknown) {
     model: value.model.trim(),
     reasoning: value.reasoning,
   } satisfies SummaryConfig;
+}
+
+export function runSummariesEnabled(path = ENABLED_CONFIG_PATH) {
+  try {
+    const value = readFileSync(path, "utf8").trim().toLowerCase();
+    return !["0", "false", "off", "disabled"].includes(value);
+  } catch {
+    return true;
+  }
 }
 
 export function loadSummaryConfig() {
