@@ -1,8 +1,8 @@
 {
   "lastChangelogVersion": "0.84.2",
   "theme": "oxocarbon",
-  "defaultProvider": "openrouter",
-  "defaultModel": "stealth/ox-alpha",
+  "defaultProvider": "devin",
+  "defaultModel": "swe-1-7",
   "defaultThinkingLevel": "high",
   "transport": "auto",
   "defaultProjectTrust": "ask",
@@ -26,9 +26,7 @@
   ],
   "treeFilterMode": "default",
   "compaction": {
-    "enabled": true,
-    "reserveTokens": 40000,
-    "keepRecentTokens": 20000
+    "enabled": true
   },
   "quietStartup": true,
   "tuiMode": "fullscreen",
@@ -38,8 +36,5 @@
   "markdown": {
     "mermaid": "streaming"
   },
-  "collapseChangelog": true,
-  "branchSummary": {
-    "reserveTokens": 40000
-  }
+  "collapseChangelog": true
 }

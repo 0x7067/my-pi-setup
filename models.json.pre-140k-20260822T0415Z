@@ -1,0 +1,46 @@
+{
+  "providers": {
+    "home-vllm": {
+      "baseUrl": "http://100.64.0.2/v1",
+      "api": "openai-completions",
+      "apiKey": "${HOME_VLLM_API_KEY}",
+      "authHeader": true,
+      "headers": {
+        "User-Agent": "pi-coding-agent"
+      },
+      "models": [
+        {
+          "id": "qwen3.8-27b",
+          "name": "Qwen3.8 27B (home vLLM)",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "off": "off",
+            "minimal": null,
+            "low": null,
+            "medium": "medium",
+            "high": null,
+            "xhigh": "xhigh",
+            "max": null
+          },
+          "compat": {
+            "supportsReasoningEffort": true
+          },
+          "input": ["text", "image"],
+          "contextWindow": 128000,
+          "maxTokens": 32768,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        }
+      ]
+    },
+    "openrouter": {
+      "compat": {
+        "sendSessionAffinityHeaders": true
+      }
+    }
+  }
+}

@@ -98,10 +98,9 @@ test("the working row exists only while the agent is active", async () => {
   generativeStatus(pi);
   await handlers.get("session_start")?.({}, ctx);
   await handlers.get("agent_start")?.({}, ctx);
-  await handlers.get("agent_end")?.({}, ctx);
   await handlers.get("agent_settled")?.({}, ctx);
   await handlers.get("session_shutdown")?.({}, ctx);
 
-  assert.deepEqual(visibility, [false, true, false, false, false]);
+  assert.deepEqual(visibility, [false, true, false, true]);
   assert.deepEqual(thinkingLabels, ["", undefined]);
 });

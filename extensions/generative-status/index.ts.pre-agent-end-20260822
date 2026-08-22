@@ -151,11 +151,6 @@ export default function generativeStatus(pi: ExtensionAPI) {
     );
   });
 
-  pi.on("agent_end", (_event, ctx) => {
-    activeTools.clear();
-    if (ctx.mode === "tui") ctx.ui.setWorkingVisible(false);
-  });
-
   pi.on("agent_settled", (_event, ctx) => {
     activeTools.clear();
     if (ctx.mode === "tui") ctx.ui.setWorkingVisible(false);
@@ -197,7 +192,7 @@ export default function generativeStatus(pi: ExtensionAPI) {
     activeTools.clear();
     if (ctx.mode !== "tui") return;
     ctx.ui.setHiddenThinkingLabel();
-    ctx.ui.setWorkingVisible(false);
+    ctx.ui.setWorkingVisible(true);
     ctx.ui.setWorkingIndicator();
     ctx.ui.setWorkingMessage();
   });
