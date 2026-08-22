@@ -71,13 +71,48 @@ Controlled tests ruled out the client-side levers that were available:
   35,388-token initial request followed by a request at 180 seconds still
   reported `input=35403, cacheRead=0`. The adapter patch was removed.
 
-The remaining loss is therefore upstream of Pi's prompt construction and
-transport selection. Keep `auto`: WebSocket delta continuation avoids replaying
-the full payload and improves active tool loops, but neither transport affinity
-nor keepalive currently extends the OAuth backend's billable cache lifetime.
-The practical mitigations are to avoid idle gaps during expensive loops,
-compact before resuming a very large stale context, or use an API-key provider
-that exposes supported cache-retention controls.
+Those tests established that transport affinity and non-generating warmups do
+not extend the billable cache lifetime. They did not test a real generated cache
+read.
+
+#### Generated refresh resolution (2026-08-21)
+
+A later controlled SSE replay used isolated 34,400-token prefixes. Both arms
+started with 33,536 cached tokens. After six idle minutes, the untouched control
+missed completely, while the arm that made one normal five-output-token request
+at minutes two and four still read all 33,536 cached tokens:
+
+| arm       | minute 2 read | minute 4 read | minute 6 read | minute 6 input |
+| --------- | ------------: | ------------: | ------------: | -------------: |
+| control   |             — |             — |             0 |         34,400 |
+| refreshed |        33,536 |        33,536 |        33,536 |            864 |
+
+The refresh request appended a text-only "reply with exactly OK" suffix, set
+`tool_choice: "none"`, discarded the response, and preserved the original
+prefix. This succeeded where both the package prewarm lane and WebSocket
+`generate: false` failed.
+
+Two other hypotheses were rejected:
+
+- The OAuth endpoint rejected a nested `prompt_cache_breakpoint`, even without
+  `prompt_cache_options`, with `prompt_cache_breakpoint is not supported on
+this model`.
+- Adding the official client's `thread-id` identity did not improve retention.
+  In an isolated 180-second A/B, the existing Pi request read 33,536 cached
+  tokens and the extra-header arm missed completely. The header change was not
+  kept.
+
+`extensions/zz-codex-cache-keepalive` implements the proven refresh with strict
+bounds. It runs only in the TUI for text-only Codex OAuth contexts of at least
+20,000 tokens, refreshes at two and four idle minutes, stops at six minutes,
+uses SSE, records token counts in prompt-neutral session entries, and cancels on
+activity, model changes, session changes, misses, or errors. The timers are
+unreferenced and captured payloads are cleared when the window ends.
+
+Keep `transport: "auto"` for ordinary turns: WebSocket delta continuation still
+avoids replaying the full payload and improves active tool loops. Compact before
+resuming a context that has already gone cold, or use an API-key provider when
+longer documented retention is required.
 
 Where the losses come from:
 
@@ -161,6 +196,10 @@ reuse (`/stats prompt`) and `/stats summary` reports reuse per model.
   fake endpoint: OpenRouter `anthropic/*` requests carry
   `{"type":"ephemeral","ttl":"1h"}`, OpenRouter `openai/*` requests carry the
   key and retention, and DeepSeek requests carry none of these fields.
+- `extensions/zz-codex-cache-keepalive` performs at most two generated,
+  no-tool cache reads for large text-only Codex OAuth contexts during the first
+  six idle minutes. `extensions/prompt-cache/codex-cache-probe.ts` contains the
+  reproducible control, identity, breakpoint, and generated-refresh arms.
 - The same extension sends xAI's `x-grok-conv-id` header (session ID) so
   Grok requests keep cache affinity, as xAI's caching guide recommends.
 - `models.json` sets `providers.openrouter.compat.sendSessionAffinityHeaders:

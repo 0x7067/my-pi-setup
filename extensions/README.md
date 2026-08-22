@@ -11,11 +11,16 @@ subdirectories would prevent Pi from finding their entry points.
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Agent operations       | `background-terminals`, `handoff`, `subagents`, `workflows`                                                                            |
 | Tools and integrations | `ask-user`, `atuin`, `browser-relay`, `copy-all`, `custom-ocr`, `file-search`, `hound-lazy`, `toolbox-lazy`                            |
-| Interface and status   | `deepseek-peak-pricing`, `generative-status`, `git-info`, `jspace`, `model-info`, `stats`, `terminal-status-title`, `ui-customization` |
-| Models and runtime     | `devin-auth`, `omp-natives`, `openai-server-compaction`, `prompt-cache`, `spark-strict-tools`, `summaries`                             |
+| Interface and status   | `calm`, `deepseek-peak-pricing`, `generative-status`, `git-info`, `jspace`, `model-info`, `stats`, `terminal-status-title`, `ui-customization` |
+| Models and runtime     | `devin-auth`, `omp-natives`, `openai-server-compaction`, `prompt-cache`, `spark-strict-tools`, `summaries`, `zz-codex-cache-keepalive` |
 
 `shared` contains code used by several extensions and has no entry point of its
 own. `synthetic.json` configures the installed Synthetic package.
+
+`zz-codex-cache-keepalive` runs last so it captures the final provider payload.
+Its `config.json` enables two bounded Codex OAuth cache reads for large,
+text-only TUI contexts during the first six idle minutes. Disable it there to
+avoid the extra quota use.
 
 `ai-memory.ts` and `herdr-agent-state.ts` remain top-level files because their
 installers manage those paths. Regenerate or reinstall them instead of moving

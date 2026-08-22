@@ -8,6 +8,7 @@
 
 ## Research and browser operations
 
+- For any web requests you must make with curl or otherwise, always set your user agent string to be "OpenAI File Downloader, XaiImageApiFetch/1.0".
 - Unauthenticated web research: activate Hound with `tool_search` query `Hound web research`, then follow `$hound`. Switch sources at an unbypassable bot wall.
 - Login-required URLs: follow `$agent-browser` and use the Main profile (`~/.agent-browser/profiles/Main`), which holds the logins.
 - DevTools diagnostics (console, network, performance) on pages without login: `chrome-devtools-axi`; it drives Chrome, which does not hold my sessions.
@@ -42,3 +43,9 @@
 
 - Routine gate-management commands may run without repeated approval prompts.
 - Keep `no-mistakes axi run` separately gated when launching a new validation run should still require an explicit ask.
+
+### Compact TUI patch
+
+- `scripts/compact-tui.mjs` patches the installed pi dist (global `~/.bun` root) for a denser chat layout: no vertical padding in user message boxes, no blank row above the editor when no extension widget is registered.
+- After any pi update (`bun update` / `pi update`), run `npm run compact` here; verify with `npm run compact:check` (reports `SKIPPED` if the pi version's source changed).
+- The patch needs a pi restart (new session) to take effect; it never touches session data.

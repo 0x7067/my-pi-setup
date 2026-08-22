@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "intervalMs": 120000,
+  "maxIdleMs": 360000,
+  "minimumContextTokens": 20000,
+  "requestTimeoutMs": 120000
+}

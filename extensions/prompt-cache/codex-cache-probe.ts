@@ -5,13 +5,17 @@ import {
   addCodexStablePrefixBreakpoint,
   alignCodexPromptCacheKey,
   codexCacheIdentityHeaders,
+  createCodexCacheRefreshPayload,
 } from "./index.ts";
 
-type ProbeArm = "control" | "aligned" | "breakpoint";
-type ProbePhase = "cold" | "warm" | "changed" | "delayed";
+type ProbeArm = "control" | "aligned" | "breakpoint" | "touch";
+type ProbePhase = "cold" | "warm" | "changed" | "delayed" | `touch-${number}`;
 
 const DEFAULT_MODEL = "gpt-5.6-luna";
 const DEFAULT_DELAY_MS = 180_000;
+const DEFAULT_STABLE_REPEAT = 120;
+const DEFAULT_ARMS: ProbeArm[] = ["control", "aligned", "breakpoint"];
+const SELECTABLE_ARMS: ProbeArm[] = [...DEFAULT_ARMS, "touch"];
 const SAFE_STABLE_PARAGRAPH =
   "Keep the supplied requirements unchanged, use deterministic ordering, and answer the final request exactly as instructed. ";
 
@@ -24,12 +28,17 @@ function positiveInteger(value: string | undefined, fallback: number) {
   return parsed;
 }
 
-function stableInstructions() {
+function stableInstructions(repeat: number) {
   return [
     "You are running a prompt-cache transport probe.",
     "Do not call tools. Reply with exactly OK.",
-    SAFE_STABLE_PARAGRAPH.repeat(120),
+    SAFE_STABLE_PARAGRAPH.repeat(repeat),
   ].join("\n");
+}
+
+function isolatedInstructions(instructions: string, arm: ProbeArm) {
+  const namespace = `Cache probe namespace ${arm}. `.repeat(32);
+  return `${namespace}\n${instructions}`;
 }
 
 function context(instructions: string, variant: "a" | "b"): Context {
@@ -60,15 +69,29 @@ function usage(message: AssistantMessage) {
     cacheRead: message.usage.cacheRead,
     cacheWrite: message.usage.cacheWrite,
     cacheWriteReported:
-      (message.usage as typeof message.usage & {
-        cacheWriteReported?: boolean;
-      }).cacheWriteReported ?? false,
+      (
+        message.usage as typeof message.usage & {
+          cacheWriteReported?: boolean;
+        }
+      ).cacheWriteReported ?? false,
     output: message.usage.output,
   };
 }
 
 function emit(value: Record<string, unknown>) {
   process.stdout.write(`${JSON.stringify(value)}\n`);
+}
+
+function configuredArms(value: string | undefined) {
+  if (!value?.trim()) return DEFAULT_ARMS;
+  const arms = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item): item is ProbeArm =>
+      SELECTABLE_ARMS.includes(item as ProbeArm),
+    );
+  if (arms.length === 0) throw new Error("No valid probe arms were selected");
+  return [...new Set(arms)];
 }
 
 async function runRequest(
@@ -80,6 +103,8 @@ async function runRequest(
   sessionId: string,
   variant: "a" | "b",
 ) {
+  const alignedIdentity = arm === "aligned" || arm === "breakpoint";
+  const refreshRequest = arm === "touch" && phase.startsWith("touch-");
   try {
     const message = await runtime.completeSimple(
       model,
@@ -90,17 +115,18 @@ async function runRequest(
         reasoning: "minimal",
         maxRetries: 0,
         timeoutMs: 120_000,
-        transformHeaders:
-          arm === "control"
-            ? undefined
-            : async (headers) => ({
-                ...headers,
-                ...codexCacheIdentityHeaders(model, sessionId),
-              }),
+        transformHeaders: alignedIdentity
+          ? async (headers) => ({
+              ...headers,
+              ...codexCacheIdentityHeaders(model, sessionId),
+            })
+          : undefined,
         onPayload:
-          arm === "control"
-            ? undefined
-            : async (payload) => {
+          alignedIdentity || refreshRequest
+            ? async (payload) => {
+                if (refreshRequest) {
+                  return createCodexCacheRefreshPayload(payload, model);
+                }
                 const aligned = alignCodexPromptCacheKey(
                   payload,
                   model,
@@ -109,7 +135,8 @@ async function runRequest(
                 return arm === "breakpoint"
                   ? addCodexStablePrefixBreakpoint(aligned, model)
                   : aligned;
-              },
+              }
+            : undefined,
       },
     );
     emit({
@@ -119,6 +146,9 @@ async function runRequest(
       variant,
       stopReason: message.stopReason,
       usage: usage(message),
+      ...(message.errorMessage
+        ? { error: safeError(message.errorMessage) }
+        : {}),
     });
     return message;
   } catch (error) {
@@ -132,6 +162,17 @@ const delayMs = positiveInteger(
   DEFAULT_DELAY_MS,
 );
 const modelId = process.env.CODEX_CACHE_PROBE_MODEL?.trim() || DEFAULT_MODEL;
+const stableRepeat = positiveInteger(
+  process.env.CODEX_CACHE_PROBE_REPEAT,
+  DEFAULT_STABLE_REPEAT,
+);
+const touchIntervalMs = process.env.CODEX_CACHE_PROBE_TOUCH_INTERVAL_MS
+  ? positiveInteger(process.env.CODEX_CACHE_PROBE_TOUCH_INTERVAL_MS, 1)
+  : undefined;
+const touchCount = positiveInteger(
+  process.env.CODEX_CACHE_PROBE_TOUCH_COUNT,
+  2,
+);
 const runtime = await ModelRuntime.create({
   authPath: new URL("../../auth.json", import.meta.url).pathname,
   modelsPath: new URL("../../models.json", import.meta.url).pathname,
@@ -145,8 +186,8 @@ if (!resolvedAuth || resolvedAuth.source !== "OAuth") {
   throw new Error("OpenAI Codex OAuth is not configured");
 }
 
-const instructions = stableInstructions();
-const arms: ProbeArm[] = ["control", "aligned", "breakpoint"];
+const instructions = stableInstructions(stableRepeat);
+const arms = configuredArms(process.env.CODEX_CACHE_PROBE_ARMS);
 const sessionIds = new Map(
   arms.map((arm) => [arm, `cache-probe-${randomUUID()}`]),
 );
@@ -158,13 +199,14 @@ emit({
   delayMs,
   stableChars: instructions.length,
   arms,
+  ...(touchIntervalMs ? { touchIntervalMs, touchCount } : {}),
 });
 
 for (const arm of arms) {
   await runRequest(
     runtime,
     model,
-    instructions,
+    isolatedInstructions(instructions, arm),
     arm,
     "cold",
     sessionIds.get(arm)!,
@@ -175,7 +217,7 @@ for (const arm of arms) {
   await runRequest(
     runtime,
     model,
-    instructions,
+    isolatedInstructions(instructions, arm),
     arm,
     "warm",
     sessionIds.get(arm)!,
@@ -186,7 +228,7 @@ for (const arm of arms) {
   await runRequest(
     runtime,
     model,
-    instructions,
+    isolatedInstructions(instructions, arm),
     arm,
     "changed",
     sessionIds.get(arm)!,
@@ -194,14 +236,36 @@ for (const arm of arms) {
   );
 }
 
-emit({ event: "wait", delayMs });
-await new Promise((resolve) => setTimeout(resolve, delayMs));
+let elapsedMs = 0;
+if (arms.includes("touch") && touchIntervalMs) {
+  for (let index = 1; index <= touchCount; index += 1) {
+    if (elapsedMs + touchIntervalMs >= delayMs) {
+      throw new Error("Touch schedule must end before the delayed request");
+    }
+    emit({ event: "wait", delayMs: touchIntervalMs, until: `touch-${index}` });
+    await new Promise((resolve) => setTimeout(resolve, touchIntervalMs));
+    elapsedMs += touchIntervalMs;
+    await runRequest(
+      runtime,
+      model,
+      isolatedInstructions(instructions, "touch"),
+      "touch",
+      `touch-${index}`,
+      sessionIds.get("touch")!,
+      "b",
+    );
+  }
+}
+
+const remainingDelayMs = delayMs - elapsedMs;
+emit({ event: "wait", delayMs: remainingDelayMs, until: "delayed" });
+await new Promise((resolve) => setTimeout(resolve, remainingDelayMs));
 
 for (const arm of arms) {
   await runRequest(
     runtime,
     model,
-    instructions,
+    isolatedInstructions(instructions, arm),
     arm,
     "delayed",
     sessionIds.get(arm)!,

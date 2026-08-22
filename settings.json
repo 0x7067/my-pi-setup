@@ -1,8 +1,8 @@
 {
   "lastChangelogVersion": "0.84.2",
   "theme": "oxocarbon",
-  "defaultProvider": "kimi-coding",
-  "defaultModel": "k3",
+  "defaultProvider": "devin",
+  "defaultModel": "swe-1-7",
   "defaultThinkingLevel": "high",
   "transport": "auto",
   "defaultProjectTrust": "ask",
@@ -10,7 +10,9 @@
   "showCacheMissNotices": false,
   "steeringMode": "all",
   "followUpMode": "all",
-  "skills": ["!/Users/pedro/.agents/skills/**"],
+  "skills": [
+    "!/Users/pedro/.agents/skills/**"
+  ],
   "packages": [
     {
       "source": "npm:@53able/pi-agent-browser@0.6.1",
@@ -20,14 +22,14 @@
       "source": "git:github.com/dondai44423/master-fetch@v13.1.2",
       "extensions": []
     },
-    "npm:pi-lens"
+    "npm:pi-lens@4.1.0"
   ],
   "treeFilterMode": "default",
   "compaction": {
     "enabled": true
   },
   "quietStartup": true,
-  "tuiMode": "full",
+  "tuiMode": "fullscreen",
   "terminal": {
     "clearOnShrink": true
   },

@@ -12,6 +12,8 @@ type JsonRecord = Record<string, unknown>;
 export const CODEX_CACHE_BREAKPOINT_ENV = "PI_CODEX_CACHE_BREAKPOINT";
 export const CODEX_CACHE_BREAKPOINT_TEXT =
   "The stable session instructions and tool definitions end here.";
+export const CODEX_CACHE_REFRESH_TEXT =
+  "Cache refresh only. Do not call tools. Reply with exactly OK.";
 
 /**
  * Providers whose APIs accept Pi's long cache retention fields, keyed to the
@@ -47,7 +49,10 @@ export function isOpenAICodexModel(model: unknown) {
 }
 
 /** Match the cache identity carried by the official Codex client. */
-export function codexCacheIdentityHeaders(model: unknown, sessionId: string) {
+export function codexCacheIdentityHeaders(
+  model: unknown,
+  sessionId: string,
+): Record<string, string> {
   if (!isOpenAICodexModel(model) || !sessionId) return {};
   return {
     "session-id": sessionId,
@@ -124,6 +129,32 @@ export function addCodexStablePrefixBreakpoint(
   return { ...root, input: [boundary, ...root.input] };
 }
 
+/** Append a harmless suffix while keeping the existing cacheable prefix intact. */
+export function createCodexCacheRefreshPayload(
+  payload: unknown,
+  model: unknown,
+) {
+  const root = record(payload);
+  if (!root || !isOpenAICodexModel(model) || !Array.isArray(root.input)) {
+    return payload;
+  }
+  const refreshMessage = {
+    type: "message",
+    role: "user",
+    content: [
+      {
+        type: "input_text",
+        text: CODEX_CACHE_REFRESH_TEXT,
+      },
+    ],
+  };
+  return {
+    ...root,
+    input: [...root.input, refreshMessage],
+    tool_choice: "none",
+  };
+}
+
 /** Explicit `none` (used by compaction) must stay `none`. */
 export function withLongCacheRetention(
   options?: SimpleStreamOptions,
@@ -157,26 +188,11 @@ export function createPromptCacheExtension(
     }
 
     pi.on("before_provider_headers", (event, ctx) => {
-      const sessionId = ctx.sessionManager.getSessionId();
-      const header = affinityHeader(ctx.model?.provider, sessionId);
+      const header = affinityHeader(
+        ctx.model?.provider,
+        ctx.sessionManager.getSessionId(),
+      );
       if (header) event.headers[header.name] = header.value;
-      Object.assign(
-        event.headers,
-        codexCacheIdentityHeaders(ctx.model, sessionId),
-      );
-    });
-
-    pi.on("before_provider_request", (event, ctx) => {
-      const sessionId = ctx.sessionManager.getSessionId();
-      let payload = alignCodexPromptCacheKey(
-        event.payload,
-        ctx.model,
-        sessionId,
-      );
-      if (codexCacheBreakpointEnabled()) {
-        payload = addCodexStablePrefixBreakpoint(payload, ctx.model);
-      }
-      return payload === event.payload ? undefined : payload;
     });
   };
 }

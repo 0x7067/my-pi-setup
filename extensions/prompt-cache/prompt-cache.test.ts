@@ -7,8 +7,10 @@ import {
   alignCodexPromptCacheKey,
   CODEX_CACHE_BREAKPOINT_ENV,
   CODEX_CACHE_BREAKPOINT_TEXT,
+  CODEX_CACHE_REFRESH_TEXT,
   codexCacheBreakpointEnabled,
   codexCacheIdentityHeaders,
+  createCodexCacheRefreshPayload,
   createPromptCacheExtension,
   LONG_RETENTION_PROVIDERS,
   withLongCacheRetention,
@@ -149,6 +151,27 @@ test("Codex breakpoint feature flag is explicit", () => {
   );
 });
 
+test("Codex refresh appends a no-tool suffix without changing the prefix", () => {
+  const originalInput = [{ type: "message", role: "user", content: [] }];
+  const payload = {
+    model: "gpt-5.6-luna",
+    input: originalInput,
+    tool_choice: "auto",
+  };
+  const result = createCodexCacheRefreshPayload(
+    payload,
+    codexModel,
+  ) as typeof payload;
+  assert.deepEqual(result.input.slice(0, -1), originalInput);
+  assert.deepEqual(result.input.at(-1), {
+    type: "message",
+    role: "user",
+    content: [{ type: "input_text", text: CODEX_CACHE_REFRESH_TEXT }],
+  });
+  assert.equal(result.tool_choice, "none");
+  assert.equal(payload.tool_choice, "auto");
+});
+
 test("before_provider_headers sets the xAI conversation header from the session id", () => {
   const { pi, handlers } = fakePi();
   createPromptCacheExtension((() => "stream") as never)(pi);
@@ -171,39 +194,4 @@ test("before_provider_headers sets the xAI conversation header from the session 
   };
   handler(other, ctx("openrouter"));
   assert.deepEqual(other.headers, {});
-
-  const codex = {
-    type: "before_provider_headers",
-    headers: {} as Record<string, string>,
-  };
-  handler(codex, {
-    model: codexModel,
-    sessionManager: { getSessionId: () => "session-9" },
-  });
-  assert.deepEqual(codex.headers, {
-    "session-id": "session-9",
-    "thread-id": "session-9",
-    "x-client-request-id": "session-9",
-  });
-});
-
-test("before_provider_request aligns the Codex cache key by default", () => {
-  const { pi, handlers } = fakePi();
-  createPromptCacheExtension((() => "stream") as never)(pi);
-  const [handler] = handlers.get("before_provider_request")!;
-  const result = handler(
-    {
-      type: "before_provider_request",
-      payload: { model: "gpt-5.6-luna", input: [], prompt_cache_key: "old" },
-    },
-    {
-      model: codexModel,
-      sessionManager: { getSessionId: () => "session-9" },
-    },
-  );
-  assert.deepEqual(result, {
-    model: "gpt-5.6-luna",
-    input: [],
-    prompt_cache_key: "session-9",
-  });
 });
